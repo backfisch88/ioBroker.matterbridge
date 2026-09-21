@@ -2,31 +2,58 @@
   "common": {
     "name": "matterbridge",
     "version": "0.7.1",
-    "title": "Matterbridge",
     "titleLang": {
-      "en": "Matterbridge Supervisor",
-      "de": "Matterbridge-Prozessverwaltung"
+      "en": "Matterbridge",
+      "de": "Matterbridge",
+      "ru": "Matterbridge",
+      "pt": "Matterbridge",
+      "nl": "Matterbridge",
+      "fr": "Matterbridge",
+      "it": "Matterbridge",
+      "es": "Matterbridge",
+      "pl": "Matterbridge",
+      "uk": "Matterbridge",
+      "zh-cn": "Matterbridge"
     },
     "desc": {
-      "en": "Runs and manages a native Matterbridge instance and embeds its UI as an admin tab",
-      "de": "Startet und verwaltet eine native Matterbridge-Instanz und bindet deren Oberfläche als Admin-Tab ein"
+      "en": "Runs and manages a native Matterbridge instance and exposes ioBroker devices to Matter controllers such as Apple Home, Google Home, and Home Assistant.",
+      "de": "Startet und verwaltet eine native Matterbridge-Instanz und stellt ioBroker-Geräte für Matter-Controller wie Apple Home, Google Home und Home Assistant bereit.",
+      "ru": "Запускает и управляет нативным экземпляром Matterbridge и предоставляет устройства ioBroker контроллерам Matter, таким как Apple Home, Google Home и Home Assistant.",
+      "pt": "Executa e gerencia uma instância nativa do Matterbridge e disponibiliza dispositivos ioBroker para controladores Matter como Apple Home, Google Home e Home Assistant.",
+      "nl": "Start en beheert een native Matterbridge-instantie en stelt ioBroker-apparaten beschikbaar aan Matter-controllers zoals Apple Home, Google Home en Home Assistant.",
+      "fr": "Démarre et gère une instance native de Matterbridge et expose les appareils ioBroker aux contrôleurs Matter tels qu'Apple Home, Google Home et Home Assistant.",
+      "it": "Avvia e gestisce un'istanza nativa di Matterbridge ed espone i dispositivi ioBroker ai controller Matter come Apple Home, Google Home e Home Assistant.",
+      "es": "Ejecuta y gestiona una instancia nativa de Matterbridge y expone los dispositivos de ioBroker a controladores Matter como Apple Home, Google Home y Home Assistant.",
+      "pl": "Uruchamia i zarządza natywną instancją Matterbridge oraz udostępnia urządzenia ioBroker kontrolerom Matter, takim jak Apple Home, Google Home i Home Assistant.",
+      "uk": "Запускає та керує нативним екземпляром Matterbridge і надає пристрої ioBroker контролерам Matter, таким як Apple Home, Google Home і Home Assistant.",
+      "zh-cn": "运行并管理原生 Matterbridge 实例，将 ioBroker 设备暴露给 Apple Home、Google Home 和 Home Assistant 等 Matter 控制器。"
     },
     "authors": ["Henrik"],
-    "keywords": ["matter", "matterbridge", "smart home"],
-    "license": "MIT",
+    "keywords": [
+      "matter",
+      "matterbridge",
+      "apple-home",
+      "google-home",
+      "home-assistant",
+      "bridge"
+    ],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
     "platform": "Javascript/Node.js",
     "mode": "daemon",
-    "type": "smarthome",
+    "type": "protocols",
+    "tier": 3,
     "compact": true,
     "connectionType": "local",
     "dataSource": "push",
     "icon": "matterbridge.png",
-    "main": "main.js",
+    "extIcon": "https://raw.githubusercontent.com/backfisch88/ioBroker.matterbridge/main/admin/matterbridge.png",
     "adminUI": {
       "config": "json",
       "tab": "html"
     },
-
     "adminTab": {
       "link": "/adapter/matterbridge/tab.html",
       "singleton": true,
@@ -36,11 +63,20 @@
       },
       "icon": "matterbridge.png"
     },
-
-    "stopTimeout": 10000,
     "dependencies": [
-      { "js-controller": ">=5.0.0" }
-    ]
+      { "js-controller": ">=6.0.11" }
+    ],
+    "globalDependencies": [
+      { "admin": ">=7.6.17" }
+    ],
+    "materializeTab": true,
+    "stopTimeout": 10000,
+    "news": {
+      "0.7.1": {
+        "en": "Repository review preparation: translated backend/log text and README to English, fixed package.json/io-package.json metadata, added stale Matter lock file cleanup on start.",
+        "de": "Vorbereitung für die Repository-Prüfung: Backend-/Log-Texte und README ins Englische übersetzt, package.json/io-package.json-Metadaten korrigiert, Aufräumen verwaister Matter-Sperrdateien beim Start ergänzt."
+      }
+    }
   },
   "native": {
     "installPath": "",
@@ -65,8 +101,8 @@
       "_id": "info.running",
       "type": "state",
       "common": {
-        "role": "indicator.state",
-        "name": "Matterbridge-Prozess läuft",
+        "role": "indicator",
+        "name": "Matterbridge process is running",
         "type": "boolean",
         "read": true,
         "write": false,
@@ -79,7 +115,7 @@
       "type": "state",
       "common": {
         "role": "indicator",
-        "name": "Matterbridge ist installiert",
+        "name": "Matterbridge is installed",
         "type": "boolean",
         "read": true,
         "write": false,
@@ -92,7 +128,7 @@
       "type": "state",
       "common": {
         "role": "indicator",
-        "name": "Isolierte Node.js-Laufzeit fuer Matterbridge bereit",
+        "name": "Isolated Node.js runtime for Matterbridge is ready",
         "type": "boolean",
         "read": true,
         "write": false,
@@ -105,7 +141,7 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Matterbridge neu starten",
+        "name": "Restart Matterbridge",
         "type": "boolean",
         "read": false,
         "write": true,
@@ -118,7 +154,7 @@
       "type": "state",
       "common": {
         "role": "button",
-        "name": "Matterbridge stoppen",
+        "name": "Stop Matterbridge",
         "type": "boolean",
         "read": false,
         "write": true,
@@ -131,7 +167,7 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "npm-Paketname eines Matterbridge-Plugins eintragen, um es zu installieren und zu registrieren (laeuft garantiert mit der isolierten Node/npm-Version, unabhaengig von Matterbridges eigenem Install-Button)",
+        "name": "Enter an npm package name of a Matterbridge plugin to install and register it",
         "type": "string",
         "read": true,
         "write": true,
@@ -144,7 +180,7 @@
       "type": "state",
       "common": {
         "role": "text",
-        "name": "npm-Paketname eines Matterbridge-Plugins eintragen, um es zu entfernen (Registrierung bei Matterbridge, Dateien bleiben erhalten)",
+        "name": "Enter an npm package name of a Matterbridge plugin to remove it",
         "type": "string",
         "read": true,
         "write": true,

@@ -29,8 +29,8 @@
       "ui:widget": "hidden"
     },
     "whiteList": {
-      "title": "Whitelist (einzelne Geraete)",
-      "description": "Standardmaessig werden GAR KEINE Geraete angelegt. Hier einzelne States/Geraete per Checkbox anhaken, um sie gezielt zu aktivieren.",
+      "title": "Whitelist (individual devices)",
+      "description": "By default NO devices are created at all. Check individual states/devices here via checkbox to enable them specifically.",
       "type": "array",
       "items": {
         "type": "string"
@@ -39,8 +39,8 @@
       "selectFrom": "serial"
     },
     "idPrefixes": {
-      "title": "Praefix-Filter (ganze Adapter-Instanzen)",
-      "description": "Alternative zur Whitelist fuer viele Geraete auf einmal: z.B. \"shelly.0.\" aktiviert ALLE gefundenen Shelly-Geraete dieser Instanz, ohne jedes einzeln anzuhaken. Kombinierbar mit der Whitelist.",
+      "title": "Prefix filter (whole adapter instances)",
+      "description": "An alternative to the whitelist for enabling many devices at once: e.g. \"shelly.0.\" enables ALL discovered Shelly devices of that instance, without checking each one individually. Can be combined with the whitelist.",
       "type": "array",
       "items": {
         "type": "string"
@@ -50,7 +50,7 @@
     },
     "blackList": {
       "title": "Blacklist",
-      "description": "Diese States werden NIE angelegt - hat Vorrang vor Whitelist UND Praefix-Filter.",
+      "description": "These states are NEVER created - takes precedence over both the whitelist AND the prefix filter.",
       "type": "array",
       "items": {
         "type": "string"
@@ -59,31 +59,31 @@
       "selectFrom": "serial"
     },
     "customDevices": {
-      "title": "Geraete-Baukasten",
-      "description": "Geraetetyp waehlen, dann die dafuer noetigen State-IDs eintragen und speichern. Wird immer angelegt, unabhaengig von Whitelist/Praefix-Filter. Nuetzlich fuer Geraete, die von der automatischen Erkennung nicht (richtig) gefunden werden.",
+      "title": "Device builder",
+      "description": "Choose a device type, then enter the state IDs it needs and save. Always created, independent of the whitelist/prefix filter. Useful for devices that are not (correctly) found by automatic discovery.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "type": {
-            "title": "Geraetetyp",
+            "title": "Device type",
             "type": "string",
             "enum": ["switch", "cover", "coverWithTarget", "vacuumSimple", "temperatureSensor", "humiditySensor", "contactSensor", "occupancySensor", "dimmer"],
             "enumNames": [
-              "Schalter (ein einzelner State)",
-              "Rollo (nur Ist-Position)",
-              "Rollo mit Ist- und Soll-Position",
-              "Sauger (vereinfacht: laeuft/laeuft nicht)",
-              "Temperatursensor",
-              "Feuchtesensor",
-              "Kontaktsensor (Tuer/Fenster)",
-              "Bewegungsmelder",
-              "Dimmer (dimmbares Licht)"
+              "Switch (a single state)",
+              "Blind (current position only)",
+              "Blind with current and target position",
+              "Vacuum (simplified: running/not running)",
+              "Temperature sensor",
+              "Humidity sensor",
+              "Contact sensor (door/window)",
+              "Occupancy/motion sensor",
+              "Dimmer (dimmable light)"
             ],
             "default": "coverWithTarget"
           },
           "name": {
-            "title": "Anzeigename",
+            "title": "Display name",
             "type": "string"
           }
         },
@@ -94,69 +94,69 @@
               {
                 "properties": {
                   "type": { "enum": ["switch"] },
-                  "stateId": { "title": "State-ID (Schalter)", "type": "string" }
+                  "stateId": { "title": "State ID (switch)", "type": "string" }
                 },
                 "required": ["stateId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["cover"] },
-                  "positionId": { "title": "State-ID (Position)", "type": "string" }
+                  "positionId": { "title": "State ID (position)", "type": "string" }
                 },
                 "required": ["positionId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["coverWithTarget"] },
-                  "positionId": { "title": "State-ID (Ist-Position)", "type": "string" },
-                  "targetPositionId": { "title": "State-ID (Soll-Position)", "type": "string" }
+                  "positionId": { "title": "State ID (current position)", "type": "string" },
+                  "targetPositionId": { "title": "State ID (target position)", "type": "string" }
                 },
                 "required": ["positionId", "targetPositionId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["vacuumSimple"] },
-                  "isCleaningId": { "title": "State-ID: \"laeuft gerade\" (boolean)", "type": "string" },
-                  "startId": { "title": "State-ID: Start-Kommando (optional)", "type": "string" },
-                  "pauseId": { "title": "State-ID: Pause-Kommando (optional)", "type": "string" },
-                  "dockId": { "title": "State-ID: Nach-Hause-Kommando (optional)", "type": "string" }
+                  "isCleaningId": { "title": "State ID: \"currently running\" (boolean)", "type": "string" },
+                  "startId": { "title": "State ID: start command (optional)", "type": "string" },
+                  "pauseId": { "title": "State ID: pause command (optional)", "type": "string" },
+                  "dockId": { "title": "State ID: return-to-dock command (optional)", "type": "string" }
                 },
                 "required": ["isCleaningId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["temperatureSensor"] },
-                  "stateId": { "title": "State-ID (Temperatur, in °C)", "type": "string" }
+                  "stateId": { "title": "State ID (temperature, in °C)", "type": "string" }
                 },
                 "required": ["stateId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["humiditySensor"] },
-                  "stateId": { "title": "State-ID (Feuchte, in %)", "type": "string" }
+                  "stateId": { "title": "State ID (humidity, in %)", "type": "string" }
                 },
                 "required": ["stateId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["contactSensor"] },
-                  "stateId": { "title": "State-ID (boolean)", "type": "string" },
-                  "invert": { "title": "Wert umkehren (falls z.B. true=offen statt true=zu)", "type": "boolean", "default": false }
+                  "stateId": { "title": "State ID (boolean)", "type": "string" },
+                  "invert": { "title": "Invert value (e.g. if true=open instead of true=closed)", "type": "boolean", "default": false }
                 },
                 "required": ["stateId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["occupancySensor"] },
-                  "stateId": { "title": "State-ID (boolean)", "type": "string" },
-                  "invert": { "title": "Wert umkehren", "type": "boolean", "default": false }
+                  "stateId": { "title": "State ID (boolean)", "type": "string" },
+                  "invert": { "title": "Invert value", "type": "boolean", "default": false }
                 },
                 "required": ["stateId"]
               },
               {
                 "properties": {
                   "type": { "enum": ["dimmer"] },
-                  "stateId": { "title": "State-ID (Helligkeit, 0-100)", "type": "string" }
+                  "stateId": { "title": "State ID (brightness, 0-100)", "type": "string" }
                 },
                 "required": ["stateId"]
               }
@@ -167,8 +167,8 @@
       "default": []
     },
     "rolePrefixes": {
-      "title": "Zu durchsuchende ioBroker-Rollen",
-      "description": "Nur States mit einer dieser Rollen (bzw. die mit einem dieser Praefixe beginnen, z.B. \"switch.\") werden ueberhaupt als moegliche Geraete gesucht. Standard deckt Schalter und Rollos ab.",
+      "title": "ioBroker roles to search",
+      "description": "Only states with one of these roles (or starting with one of these prefixes, e.g. \"switch.\") are considered as possible devices at all. The default covers switches and blinds.",
       "type": "array",
       "items": {
         "type": "string"
@@ -177,14 +177,14 @@
       "default": ["switch", "level.blind", "level.shutter"]
     },
     "requireDeviceName": {
-      "title": "Nur States mit echtem Geraetenamen beruecksichtigen",
-      "description": "Standardmaessig AUS, da viele reale Geraete (z.B. Shelly vor manueller Umbenennung) keinen gesetzten Kanal-/Geraetenamen haben und sonst faelschlich ausgeschlossen wuerden. Aktivieren nur bei einer durchgehend sauber benannten Installation, um Karteileichen (lose Skript-Variablen) auszublenden.",
+      "title": "Only consider states with a real device name",
+      "description": "Off by default, since many real devices (e.g. Shelly before being renamed manually) have no channel/device name set and would otherwise be incorrectly excluded. Only enable this for a consistently, cleanly named installation, to hide leftover entries (loose script variables).",
       "type": "boolean",
       "default": false
     },
     "excludeIdSubstrings": {
-      "title": "Ausschluss-Textbausteine",
-      "description": "States, deren ID einen dieser Textbausteine enthaelt, werden von der automatischen Erkennung komplett ausgeschlossen (z.B. Skript-/Datenspeicher-Namespaces, die nie echte Geraete sind).",
+      "title": "Exclusion substrings",
+      "description": "States whose ID contains one of these substrings are completely excluded from automatic discovery (e.g. script/data-storage namespaces that are never real devices).",
       "type": "array",
       "items": {
         "type": "string"
@@ -193,14 +193,14 @@
       "default": ["0_userdata.", "javascript.", "script.js.", "wled.", "udpn.", ".seg."]
     },
     "iobrokerDataDir": {
-      "title": "ioBroker Datenverzeichnis",
-      "description": "Pfad zu iobroker-data, wird zum automatischen Erkennen von Host/Port der States-Datenbank genutzt (funktioniert fuer Datei-Modus und Redis-Modus).",
+      "title": "ioBroker data directory",
+      "description": "Path to iobroker-data, used to automatically detect the host/port of the states database (works for both file mode and Redis mode).",
       "type": "string",
       "default": "/opt/iobroker/iobroker-data"
     },
     "invertBlindPosition": {
-      "title": "Rollo-Position invertieren",
-      "description": "Aktivieren, falls Rollos in der falschen Richtung fahren (0/100 in ioBroker vs. Matter vertauscht).",
+      "title": "Invert blind position",
+      "description": "Enable this if blinds move in the wrong direction (0/100 swapped between ioBroker and Matter).",
       "type": "boolean",
       "default": false
     }

@@ -1,153 +1,105 @@
-# iobroker.matterbridge
+# ioBroker.matterbridge
 
-Installiert und überwacht eine native Matterbridge-Instanz aus ioBroker heraus
-und bettet deren Oberfläche als Admin-Tab ein. Die eigentliche Matter-Logik
-(Plugins, Bridges, Geräte) verwaltest du komplett in Matterbridge selbst -
-dieser Adapter ist "nur" der Prozess-Supervisor + die Einbettung.
+[![NPM version](https://img.shields.io/npm/v/iobroker.matterbridge.svg)](https://www.npmjs.com/package/iobroker.matterbridge)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Voraussetzungen
+Runs and supervises a native [Matterbridge](https://github.com/Luligu/matterbridge) instance as a child process and embeds its web UI as an ioBroker admin tab. Matterbridge exposes devices to Matter controllers such as Apple Home, Google Home, Amazon Alexa, and Home Assistant.
 
-- Laufende ioBroker-Installation (js-controller >= 5.0.0)
-- Node.js >= 18, npm, `jq` (wird von `install.sh` bei Bedarf nachinstalliert)
+This adapter does not implement any Matter logic itself - all cluster and plugin management is handled by Matterbridge. The adapter's job is to:
 
-## Isolierte Node.js-Laufzeit für Matterbridge
+- install and keep an isolated Node.js runtime for Matterbridge (independent of the system Node.js used by ioBroker),
+- install and start/stop/restart the Matterbridge process,
+- automatically install and register the bundled [matterbridge-iobroker-bridge](https://github.com/backfisch88/ioBroker.matterbridge) plugin, which exposes ioBroker states (switches, blinds, vacuum robots, sensors, and more via a configurable device builder) as Matter devices,
+- embed the Matterbridge frontend as an admin tab for configuration.
 
-Matterbridge (bzw. dessen `@matterbridge/*`/`@matter/*`-Abhängigkeiten) kann eine
-neuere Node.js-Version voraussetzen als das System-Node, mit dem ioBroker selbst
-läuft. Damit das System-Node für ioBroker und andere Adapter **nicht** angefasst
-werden muss, lädt dieser Adapter beim ersten Start automatisch eine eigene,
-isolierte Node.js-Version (Standard: 24.x) herunter und legt sie unter
-`<Adapterordner>/nodeRuntime` ab. Diese Laufzeit wird ausschließlich für die
-npm-Installation von Matterbridge und den Start des Matterbridge-Kindprozesses
-verwendet – nirgendwo sonst im System.
+## Why a separate Node.js runtime?
 
-Falls eine künftige Matterbridge-Version eine höhere Node-Hauptversion braucht,
-kann das in den Adapter-Einstellungen unter "Node.js-Hauptversion für
-Matterbridge" angepasst werden; der Adapter lädt die passende Version dann
-beim nächsten Start automatisch nach.
+Matterbridge and its `@matterbridge/*`/`@matter/*` dependencies may require a newer Node.js version than the one ioBroker itself runs on. To avoid touching the system Node.js (which could affect other adapters), this adapter downloads a self-contained Node.js version on demand and uses it exclusively for the Matterbridge process and its plugin installations.
 
-Unterstützt werden aktuell Linux und macOS auf x64/arm64 (automatischer
-Download von nodejs.org). Für andere Plattformen muss die Node-Version manuell
-nach `<Adapterordner>/nodeRuntime` entpackt werden.
+## Data location
 
-## Zuverlässiger globaler npm-Prefix (auch für Matterbridges eigenen "Install"-Button)
+Matterbridge's installation, storage, and Node.js runtime are stored under `iobroker-data/matterbridge/` - intentionally **not** inside the adapter's own directory under `node_modules`. This is because any `npm install`/`npm prune` operation triggered by updating **any other** ioBroker adapter scans the entire `node_modules` tree and could otherwise remove parts of an installation living there. Storing it under `iobroker-data` keeps it outside that tree and therefore safe.
 
-Matterbridge installiert Plugins nicht nur über die Kommandozeile, sondern
-bietet im Web-Frontend auch einen eigenen "Install"-Button, der intern selbst
-`npm install -g ...` aufruft. Dieser interne Mechanismus hat sich als nicht
-zuverlässig darin erwiesen, die `NPM_CONFIG_PREFIX`-Umgebungsvariable zu
-übernehmen, die der Adapter beim Start von Matterbridge setzt - Plugins
-landeten dadurch teils trotzdem im System-Standard-Verzeichnis
-(`npm root -g`) statt im isolierten Installationsordner dieses Adapters.
+Existing installations from the old location are migrated automatically and transparently on first start after updating.
 
-Um das zuverlässig zu vermeiden, schreibt der Adapter beim Start zusätzlich
-eine `prefix=`-Zeile in die persönliche `~/.npmrc` des Users, unter dem der
-Adapter-Prozess läuft. Diese Datei liest npm *immer*, unabhängig davon, wie
-oder von welchem Code aus `npm` aufgerufen wird - das ist deutlich robuster
-als sich auf Umgebungsvariablen-Vererbung durch fremden Code zu verlassen.
-Bestehende andere Einträge in `~/.npmrc` bleiben dabei unangetastet; nur eine
-eventuell abweichende `prefix=`-Zeile wird (mit Log-Hinweis) korrigiert.
+## Configuration
 
-## Mitgeliefertes Plugin: matterbridge-iobroker-bridge
+- **Frontend port / Matter port**: network ports used by Matterbridge.
+- **mDNS interface**: optionally restrict mDNS advertisement to a specific network interface.
+- **Autostart**: start Matterbridge automatically when the adapter starts.
+- **npm mirror**: use an alternative npm registry for installation, if needed.
+- **Node.js major version**: which Node.js major version to download for the isolated runtime (default: 24).
+- **iobroker-data directory**: override the default `iobroker-data` location if your installation uses a non-standard path.
 
-Der Adapter installiert und registriert das mitgelieferte generische
-Plugin `matterbridge-iobroker-bridge` automatisch, falls es noch nicht
-vorhanden ist - kein manueller Zusatzschritt noetig, um ioBroker-Geraete
-(Schalter, Rollos, Roborock-Sauger, ...) ueber Matterbridge bereitzustellen.
+The actual Matterbridge configuration (plugins, devices, bridges, pairing) is done through the embedded admin tab, which shows the Matterbridge web frontend.
 
-**Wichtig:** Das Plugin startet standardmaessig mit **null aktiven Geraeten**
-(reines Opt-in). Um Geraete zu aktivieren, im Matterbridge-Frontend bei
-diesem Plugin die Config oeffnen und entweder:
-- einzelne Geraete unter `whiteList` anhaken (Checkbox-Liste), oder
-- unter `idPrefixes` einen Praefix eintragen, z.B. `["shelly.0."]`, um
-  **alle** gefundenen Geraete einer ganzen Adapter-Instanz auf einmal zu
-  aktivieren, ohne jedes einzeln anzuhaken.
+### States
 
-`blackList` schliesst States in beiden Faellen explizit aus.
+- `info.running` - whether the Matterbridge process is currently running
+- `info.installed` - whether Matterbridge has been installed
+- `info.nodeRuntimeReady` - whether the isolated Node.js runtime is ready
+- `control.restart` - button to restart Matterbridge
+- `control.stop` - button to stop Matterbridge
+- `control.installPlugin` - write an npm package name to install and register a Matterbridge plugin
+- `control.removePlugin` - write an npm package name to remove a Matterbridge plugin
 
-## Plugins zuverlässig installieren: `control.installPlugin` statt Frontend-Button
+## The bundled bridge plugin
 
-Matterbridges eigener "Install"-Button im Web-Frontend spawnt seinen
-`npm install`-Kindprozess nachweislich mit dem **System-Node/npm**, nicht mit
-der isolierten Runtime dieses Adapters - selbst wenn Matterbridge selbst
-korrekt mit der isolierten Node-Version läuft. Das lässt sich von diesem
-Adapter aus nicht beheben, da es sich um fest verdrahtetes Verhalten in
-Matterbridges eigenem Code handelt.
+`matterbridge-iobroker-bridge` connects directly to the ioBroker states/objects database (Redis protocol) and exposes selected ioBroker devices as Matter devices. It starts with zero active devices by default; devices are enabled via a whitelist, ID prefixes (to enable a whole adapter instance at once, e.g. `shelly.0.`), or a device builder for composing custom devices (switches, blinds with position/target, vacuum robots, temperature/humidity/contact/occupancy sensors, dimmers) from arbitrary ioBroker states.
 
-Stattdessen gibt es zwei neue States, über die Plugin-Installation/-Entfernung
-zuverlässig **innerhalb dieses Adapters** läuft (garantiert korrekte
-Node/npm-Version, korrekter `-homedir`, kein manuelles `export`/`$MB` in
-irgendeiner Shell nötig):
+## License
 
-- **`control.installPlugin`**: npm-Paketnamen reinschreiben (z.B.
-  `matterbridge-roborock-vacuum-plugin`) → wird installiert und bei
-  Matterbridge registriert. Matterbridge danach einmal neu starten, damit das
-  Plugin geladen wird.
-- **`control.removePlugin`**: npm-Paketnamen reinschreiben → wird bei
-  Matterbridge deregistriert (Dateien bleiben auf der Platte, bei Bedarf
-  manuell löschen).
+MIT License
 
-### Eigentliche Ursache gefunden (seit Version 0.5.0 behoben): `-nosudo`
+Copyright (c) 2026 Henrik
 
-Matterbridge stellt seinen eigenen internen `npm install`-Aufrufen (u.a. den
-Install-Button im Frontend) automatisch ein `sudo` voran, sobald der `PATH`
-keinen `/.nvm/versions/node/`-Anteil enthält (siehe `spawnCommand.js` im
-`@matterbridge/thread`-Paket) - das trifft auf unsere eigene, isolierte
-Node-Runtime (statt `nvm`) immer zu. `sudo` setzt aber standardmäßig die
-Umgebung zurück (eigener `PATH` aus `/etc/sudoers`), wodurch das sorgfältig
-gesetzte `NPM_CONFIG_PREFIX` bei jedem internen Install-Aufruf verloren ging -
-das war die eigentliche Ursache dafür, dass Plugins über den Frontend-Button
-immer wieder im System-Standardverzeichnis statt im isolierten
-Installationsordner landeten.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Der Adapter startet Matterbridge seit Version 0.5.0 mit dem offiziell
-unterstützten CLI-Flag `-nosudo`, das dieses Verhalten sauber deaktiviert -
-kein Patchen von Matterbridge-Dateien nötig, übersteht also auch
-Matterbridge-Updates. Der Frontend-Install-Button sollte damit ebenfalls
-zuverlässig funktionieren; `control.installPlugin`/`control.removePlugin`
-bleiben als zusätzlicher, garantiert funktionierender Weg bestehen.
-- Zugriff auf den ioBroker-Host per SSH/Terminal
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-## Installation
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-1. Diesen Ordner komplett auf den ioBroker-Host kopieren, z.B.:
-   ```bash
-   scp -r iobroker.matterbridge/ pi@iobroker-host:/home/pi/
-   ```
+## Changelog
 
-2. Auf dem Host, als der User, unter dem ioBroker läuft:
-   ```bash
-   cd /home/pi/iobroker.matterbridge
-   chmod +x install.sh uninstall.sh
-   ./install.sh /opt/iobroker
-   ```
-   (Pfad `/opt/iobroker` ggf. an deine Installation anpassen.)
+### 0.7.1 (2026-09-21)
 
-3. Das Skript fragt interaktiv nach Frontend-Port, Matter-Port und
-   mDNS-Interface, installiert Matterbridge global via npm falls nötig,
-   legt die Adapterinstanz an, konfiguriert sie und startet sie.
+- Translated all backend/log text, README, and admin UI to English (with German translation retained via i18n).
+- Fixed `package.json`/`io-package.json` metadata for ioBroker repository review (author, license, repository, keywords, engines, dependency versions, adapter category, tier, news, licenseInformation).
+- Added `xs/sm/md/lg/xl` size attributes to all `admin/jsonConfig.json` items.
+- Enabled i18n for the admin configuration UI (English and German translations).
+- Added automatic cleanup of stale Matterbridge `matter.lock` files on start, so the process comes back up cleanly after a hard host reboot.
 
-4. Nach dem Start:
-   - Log prüfen: `iobroker logs matterbridge.0`
-   - Admin-Tab "Matterbridge" in der ioBroker-Oberfläche öffnen
-   - Dort Community-Plugins (Roborock, Dreame, Dyson, ...) wie gewohnt
-     über die Matterbridge-Oberfläche installieren und konfigurieren
+### 0.7.0 (2026-09-15)
 
-## Deinstallation
+- Moved Matterbridge installation/storage/Node.js runtime from the adapter directory to `iobroker-data/matterbridge/`, with automatic migration of existing installations. Protects against npm install/prune operations triggered by updates of other adapters.
 
-```bash
-./uninstall.sh /opt/iobroker        # Instanz + Adapter entfernen
-./uninstall.sh /opt/iobroker -f     # zusätzlich Matterbridge-Storage löschen
-```
+### 0.6.x
 
-## Bekannte Stolpersteine
+- Added automatic installation and registration of the bundled `matterbridge-iobroker-bridge` plugin.
+- Added the `dataDir` configuration option.
 
-- **Rechte für globale npm-Installation:** Falls `npm install -g matterbridge`
-  im Adapter-Log fehlschlägt, dem ioBroker-User Schreibrechte auf den
-  globalen npm-Pfad geben oder auf lokale Installation umstellen
-  (`installPath` in der Adapter-Config).
-- **Portkonflikte:** Läuft bereits eine zweite Matter-Instanz
-  (z.B. `ioBroker.matter`) auf demselben Host, Frontend- und Matter-Port
-  unterschiedlich wählen.
-- **iFrame/Login:** Falls Matterbridge mit Passwortschutz läuft, wirst
-  du im Admin-Tab zum Matterbridge-Login weitergeleitet - das ist normal.
+### 0.5.x
+
+- Added `-nosudo` flag to prevent Matterbridge's internal plugin installer from losing the isolated npm prefix via `sudo`'s environment reset.
+- Added adapter icon and configurable Matter port.
+
+### 0.2.x - 0.4.x
+
+- Added isolated Node.js runtime download and management.
+- Added `control.installPlugin`/`control.removePlugin` states for managing Matterbridge plugins independently of Matterbridge's own (unreliable) install mechanism.
+
+### 0.1.0
+
+- Initial release: install, start, stop, and embed Matterbridge as an ioBroker adapter with an admin tab.

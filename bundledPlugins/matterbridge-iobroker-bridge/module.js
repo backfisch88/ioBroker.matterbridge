@@ -1,41 +1,40 @@
 /**
  * matterbridge-iobroker-bridge
  * -----------------------------
- * Verbindet sich DIREKT mit der ioBroker States-/Objects-Datenbank
- * (Redis-Protokoll, Port aus iobroker.json ermittelt - funktioniert sowohl
- * mit echtem Redis als auch mit dem eingebauten Datei-Modus-Simulator von
- * js-controller). Kein zusaetzlicher ioBroker-Adapter (socketio/ws/rest-api)
- * noetig.
+ * Connects DIRECTLY to the ioBroker states/objects database (Redis
+ * protocol, port determined from iobroker.json - works both with real
+ * Redis and with js-controller's built-in file-mode simulator). No
+ * additional ioBroker adapter (socketio/ws/rest-api) required.
  *
- * Unterstuetzte Geraete-"Kinds":
- *   - "switch"  <- Rolle "switch"/"switch.*"        -> Matter OnOff-Geraet
- *   - "cover"   <- Rolle "level.blind"/"level.shutter" -> Matter WindowCovering
- *   - "vacuum"  <- erkannt an "<adapter>.<instance>.Devices.<id>.deviceStatus.state"
- *                  (Roborock-Adapter-Struktur)        -> Matter RoboticVacuumCleaner
+ * Supported device "kinds":
+ *   - "switch"  <- role "switch"/"switch.*"              -> Matter OnOff device
+ *   - "cover"   <- role "level.blind"/"level.shutter"    -> Matter WindowCovering
+ *   - "vacuum"  <- detected via "<adapter>.<instance>.Devices.<id>.deviceStatus.state"
+ *                  (Roborock adapter structure)           -> Matter RoboticVacuumCleaner
  *
- * Konfiguration (Matterbridge-Plugin-Config, siehe auch das mitgelieferte
- * *.schema.json fuer die Checkbox-Auswahl im Frontend):
+ * Configuration (Matterbridge plugin config, see also the bundled
+ * *.schema.json for the checkbox selection in the frontend):
  *   {
- *     "whiteList": [...],           // einzelne IDs, per Checkbox im Frontend waehlbar
+ *     "whiteList": [...],           // individual IDs, selectable via checkbox in the frontend
  *     "blackList": [...],
  *     "rolePrefixes": ["switch", "level.blind", "level.shutter"],
- *     "excludeIdSubstrings": ["wled.", "udpn.", ".seg."],  // grobe Rauschunterdrueckung
+ *     "excludeIdSubstrings": ["wled.", "udpn.", ".seg."],  // rough noise reduction
  *     "iobrokerDataDir": "/opt/iobroker/iobroker-data",
  *     "invertBlindPosition": false
  *   }
  *
- * Schreibrichtung (Matter-Kommando -> ioBroker):
- *   Wir schreiben SET + PUBLISH auf "io.<id>" mit {val, ack:false, ...} -
- *   exakt das Muster, das auch die ioBroker Admin-Oberflaeche selbst nutzt.
- *   Der eigentliche, besitzende Adapter uebernimmt den Befehl ueber seine
- *   eigene interne States-Subscription, fuehrt die physische Aktion aus und
- *   bestaetigt danach mit ack:true - dieses Muster haben wir empirisch am
- *   echten System verifiziert.
+ * Write direction (Matter command -> ioBroker):
+ *   We write SET + PUBLISH on "io.<id>" with {val, ack:false, ...} -
+ *   exactly the pattern the ioBroker admin UI itself uses. The actual
+ *   owning adapter picks up the command via its own internal state
+ *   subscription, performs the physical action, and then confirms with
+ *   ack:true - this pattern has been verified empirically on a real
+ *   system.
  *
- * Leserichtung (ioBroker -> Matter-Attribut):
- *   Wir abonnieren "io.<id>" per Redis SUBSCRIBE und uebernehmen nur
- *   Nachrichten mit ack:true (bestaetigte, echte Geraetezustaende - nicht
- *   die durchlaufenden ack:false-Befehle).
+ * Read direction (ioBroker -> Matter attribute):
+ *   We subscribe to "io.<id>" via Redis SUBSCRIBE and only accept
+ *   messages with ack:true (confirmed, real device states - not the
+ *   pass-through ack:false commands).
  */
 
 import path from 'node:path';
@@ -49,9 +48,9 @@ const DEFAULT_IOBROKER_DATA_DIR = '/opt/iobroker/iobroker-data';
 const DEFAULT_ROLE_PREFIXES = ['switch', 'level.blind', 'level.shutter'];
 const DEFAULT_EXCLUDE_ID_SUBSTRINGS = ['0_userdata.', 'javascript.', 'script.js.', 'wled.', 'udpn.', '.seg.'];
 
-// Roborock deviceStatus.state Codes -> Matter RvcOperationalState
-// (bekannte Werte aus der Roborock/Xiaomi-miio-Protokolldokumentation,
-// 1:1 uebernommen aus unserem frueheren dedizierten Roborock-Plugin)
+// Roborock deviceStatus.state codes -> Matter RvcOperationalState
+// (known values from the Roborock/Xiaomi-miio protocol documentation,
+// taken 1:1 from our earlier dedicated Roborock plugin)
 function mapRoborockOperationalState(state) {
   switch (state) {
     case 5:
@@ -77,7 +76,7 @@ function mapRoborockOperationalState(state) {
   }
 }
 
-/** Ordnet eine ioBroker-Rolle einem von uns unterstuetzten Geraete-"Kind" zu. */
+/** Maps an ioBroker role to one of our supported device "kinds". */
 function roleToKind(role) {
   if (!role) return null;
   if (role === 'switch' || role.startsWith('switch.')) return 'switch';
@@ -89,11 +88,11 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   constructor(matterbridge, log, config) {
     super(matterbridge, log, config);
 
-    /** @type {Map<string, MatterbridgeEndpoint>} Geraete-Key -> Matter-Endpoint (fuer switch/cover: die ioBroker-State-ID; fuer vacuum: die Roborock-Device-ID) */
+    /** @type {Map<string, MatterbridgeEndpoint>} device key -> Matter endpoint (for switch/cover: the ioBroker state ID; for vacuum: the Roborock device ID) */
     this.endpoints = new Map();
-    /** @type {Map<string, string>} Geraete-Key -> Kind ("switch"/"cover"/"vacuum") */
+    /** @type {Map<string, string>} device key -> kind ("switch"/"cover"/"vacuum") */
     this.kinds = new Map();
-    /** @type {Map<string, (state: any) => void>} ioBroker-State-ID -> Handler, der die Aenderung auf den richtigen Endpoint/Attribut anwendet */
+    /** @type {Map<string, (state: any) => void>} ioBroker state ID -> handler that applies the change to the correct endpoint/attribute */
     this.stateWatchers = new Map();
 
     this.redisCmd = null;
@@ -101,33 +100,33 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   async onStart(reason) {
-    this.log.info(`ioBroker-Bridge startet: ${reason ?? ''}`);
+    this.log.info(`ioBroker bridge starting: ${reason ?? ''}`);
     await this.ready;
 
     const dbConfig = this.readIobrokerDbConfig();
-    this.log.info(`Verbinde mit ioBroker-Datenbank auf ${dbConfig.host}:${dbConfig.port} (Typ: ${dbConfig.type})`);
+    this.log.info(`Connecting to the ioBroker database at ${dbConfig.host}:${dbConfig.port} (type: ${dbConfig.type})`);
 
     this.redisCmd = new Redis({ host: dbConfig.host, port: dbConfig.port, lazyConnect: false });
     this.redisSub = new Redis({ host: dbConfig.host, port: dbConfig.port, lazyConnect: false });
 
-    this.redisCmd.on('error', (err) => this.log.error(`Redis (Befehle) Fehler: ${err.message}`));
-    this.redisSub.on('error', (err) => this.log.error(`Redis (Subscribe) Fehler: ${err.message}`));
+    this.redisCmd.on('error', (err) => this.log.error(`Redis (commands) error: ${err.message}`));
+    this.redisSub.on('error', (err) => this.log.error(`Redis (subscribe) error: ${err.message}`));
 
     this.bindRedisMessageHandler();
 
-    // 1. Alle unterstuetzten Geraete durchsuchen (einzelne States UND
-    //    zusammengesetzte Geraete wie Roborock-Sauger) und beim Frontend
-    //    als auswaehlbare Geraete melden (Checkbox-Liste via setSelectDevice).
+    // 1. Scan for all supported devices (individual states AND composite
+    //    devices such as Roborock vacuums) and report them to the
+    //    frontend as selectable devices (checkbox list via setSelectDevice).
     const discoveredStates = await this.discoverStateDevices();
     const discoveredVacuums = await this.discoverVacuums();
     const discovered = [...discoveredStates, ...discoveredVacuums];
-    this.log.info(`${discovered.length} unterstuetzte(s) Geraet(e) gefunden (${discoveredStates.length} States, ${discoveredVacuums.length} Sauger).`);
+    this.log.info(`${discovered.length} supported device(s) found (${discoveredStates.length} states, ${discoveredVacuums.length} vacuum(s)).`);
 
-    // Aufraeumen: Geraete, die frueher einmal per setSelectDevice() gemeldet
-    // wurden (z.B. aus alten Plugin-Versionen mit weniger strikten Filtern
-    // oder inzwischen entfernte States), aber in diesem Lauf nicht mehr
-    // gefunden werden, aus der Checkbox-Liste entfernen. Sonst waechst die
-    // Liste ueber Plugin-Neustarts/-Versionen hinweg immer weiter an.
+    // Clean up: remove devices that were previously reported via
+    // setSelectDevice() (e.g. from older plugin versions with less
+    // strict filters, or states that no longer exist) but are not found
+    // in this run, from the checkbox list. Otherwise the list would just
+    // keep growing across plugin restarts/versions.
     const currentIds = new Set(discovered.map((d) => d.id));
     for (const existing of this.getSelectDevices()) {
       if (!currentIds.has(existing.serial)) {
@@ -135,13 +134,16 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       }
     }
 
-    // 2. Standardmaessig werden KEINE Geraete angelegt (bewusst opt-in,
-    //    damit man bei grossen Installationen (600+ States) nicht von einer
-    //    Checkbox-Flut erschlagen wird). Ein Geraet wird nur angelegt, wenn:
-    //    - seine ID explizit in "whiteList" steht (einzeln per Checkbox gewaehlt), ODER
-    //    - seine ID mit einem der "idPrefixes" beginnt (z.B. "shelly.0." fuer
-    //      "alle Shelly-Geraete auf einen Schlag", ohne 700 Checkboxen anzuklicken)
-    //    "blackList" schliesst in beiden Faellen explizit aus (Vorrang).
+    // 2. By default NO devices are created (deliberately opt-in, so that
+    //    large installations (600+ states) are not overwhelmed by a
+    //    flood of checkboxes). A device is only created if:
+    //    - its ID is explicitly listed in "whiteList" (selected
+    //      individually via checkbox), OR
+    //    - its ID starts with one of the "idPrefixes" (e.g. "shelly.0."
+    //      to enable "all Shelly devices at once" without clicking 700
+    //      checkboxes)
+    //    "blackList" explicitly excludes a device in both cases (takes
+    //    precedence).
     const whiteList = Array.isArray(this.config.whiteList) ? this.config.whiteList : [];
     const blackList = Array.isArray(this.config.blackList) ? this.config.blackList : [];
     const idPrefixes = Array.isArray(this.config.idPrefixes) ? this.config.idPrefixes : [];
@@ -153,12 +155,12 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       return false;
     });
 
-    // Checkbox-Liste im Frontend (setSelectDevice) bewusst NICHT fuer JEDES
-    // gefundene Geraet befuellen - bei 600+ States waere die Liste sonst
-    // unbenutzbar. Stattdessen nur die Geraete melden, die weder schon per
-    // "idPrefixes" pauschal aktiv sind noch per "blackList" explizit
-    // ausgeschlossen wurden - also genau die, bei denen eine einzelne
-    // Entscheidung tatsaechlich noch sinnvoll ist.
+    // Deliberately do NOT populate the frontend checkbox list
+    // (setSelectDevice) for EVERY discovered device - with 600+ states
+    // the list would otherwise be unusable. Instead, only report devices
+    // that are neither already active via "idPrefixes" nor explicitly
+    // excluded via "blackList" - i.e. exactly the ones where an
+    // individual decision is actually still meaningful.
     const needsIndividualReview = discovered.filter((d) => {
       if (blackList.includes(d.id)) return false;
       if (idPrefixes.some((p) => p && d.id.startsWith(p))) return false;
@@ -167,11 +169,11 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     for (const d of needsIndividualReview) {
       this.setSelectDevice(d.id, d.name, undefined, d.kind === 'switch' ? 'hub' : d.kind === 'cover' ? 'wall_shade' : 'robot_vacuum');
     }
-    this.log.info(`${needsIndividualReview.length} Geraet(e) stehen zur einzelnen Auswahl (whiteList) bereit, ${discovered.length - needsIndividualReview.length} bereits durch idPrefixes/blackList entschieden.`);
+    this.log.info(`${needsIndividualReview.length} device(s) are available for individual selection (whiteList), ${discovered.length - needsIndividualReview.length} already decided via idPrefixes/blackList.`);
 
-    this.log.info(`${toExpose.length} Geraet(e) werden angelegt (Whitelist: ${whiteList.length}, Praefix-Filter: ${idPrefixes.length}, Blacklist: ${blackList.length}).`);
+    this.log.info(`${toExpose.length} device(s) will be created (whitelist: ${whiteList.length}, prefix filter: ${idPrefixes.length}, blacklist: ${blackList.length}).`);
     if (toExpose.length === 0) {
-      this.log.info('Keine Geraete ausgewaehlt - trage IDs in "whiteList" ein (per Checkbox im Frontend) oder setze "idPrefixes" (z.B. ["shelly.0."] fuer eine ganze Adapter-Instanz auf einmal).');
+      this.log.info('No devices selected - add IDs to "whiteList" (via checkbox in the frontend) or set "idPrefixes" (e.g. ["shelly.0."] to enable a whole adapter instance at once).');
     }
 
     for (const device of toExpose) {
@@ -182,25 +184,26 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
           await this.addSimpleDevice(device);
         }
       } catch (err) {
-        this.log.error(`Konnte Geraet fuer "${device.id}" nicht anlegen: ${err.message}`);
+        this.log.error(`Could not create device for "${device.id}": ${err.message}`);
       }
     }
 
-    // "Baukasten": Geraetetyp im Dropdown waehlen, passende State-IDs
-    // eintragen, speichern - unabhaengig von Adapter/Namenskonvention und
-    // unabhaengig von Whitelist/Praefix-Filter (wird immer angelegt).
+    // "Device builder": pick a device type in the dropdown, enter the
+    // matching state IDs, save - independent of adapter/naming
+    // convention and independent of the whitelist/prefix filter (always
+    // created).
     const customDevices = Array.isArray(this.config.customDevices) ? this.config.customDevices : [];
     for (const custom of customDevices) {
       try {
         if (custom.type === 'switch') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (switch) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (switch) has no "stateId" - skipping.`);
             continue;
           }
           await this.addSimpleDevice({ id: custom.stateId, name: custom.name || custom.stateId, kind: 'switch' });
         } else if (custom.type === 'cover' || custom.type === 'coverWithTarget') {
           if (!custom.positionId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (${custom.type}) hat keine "positionId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (${custom.type}) has no "positionId" - skipping.`);
             continue;
           }
           await this.addSimpleDevice({
@@ -211,54 +214,54 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
           });
         } else if (custom.type === 'vacuumSimple') {
           if (!custom.isCleaningId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (vacuumSimple) hat keine "isCleaningId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (vacuumSimple) has no "isCleaningId" - skipping.`);
             continue;
           }
           await this.addGenericVacuumDevice(custom);
         } else if (custom.type === 'temperatureSensor') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (temperatureSensor) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (temperatureSensor) has no "stateId" - skipping.`);
             continue;
           }
           await this.addSensorDevice({ ...custom, sensorKind: 'temperature' });
         } else if (custom.type === 'humiditySensor') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (humiditySensor) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (humiditySensor) has no "stateId" - skipping.`);
             continue;
           }
           await this.addSensorDevice({ ...custom, sensorKind: 'humidity' });
         } else if (custom.type === 'contactSensor') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (contactSensor) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (contactSensor) has no "stateId" - skipping.`);
             continue;
           }
           await this.addSensorDevice({ ...custom, sensorKind: 'contact' });
         } else if (custom.type === 'occupancySensor') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (occupancySensor) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (occupancySensor) has no "stateId" - skipping.`);
             continue;
           }
           await this.addSensorDevice({ ...custom, sensorKind: 'occupancy' });
         } else if (custom.type === 'dimmer') {
           if (!custom.stateId) {
-            this.log.warn(`Baukasten-Eintrag "${custom.name}" (dimmer) hat keine "stateId" - wird uebersprungen.`);
+            this.log.warn(`Device builder entry "${custom.name}" (dimmer) has no "stateId" - skipping.`);
             continue;
           }
           await this.addDimmerDevice(custom);
         } else {
-          this.log.warn(`Baukasten-Eintrag "${custom.name}" hat unbekannten Typ "${custom.type}" - wird uebersprungen.`);
+          this.log.warn(`Device builder entry "${custom.name}" has unknown type "${custom.type}" - skipping.`);
         }
       } catch (err) {
-        this.log.error(`Konnte Baukasten-Geraet "${custom.name}" nicht anlegen: ${err.message}`);
+        this.log.error(`Could not create device builder device "${custom.name}": ${err.message}`);
       }
     }
   }
 
   /**
-   * Durchsucht die Objects-DB (Redis SCAN, nicht KEYS - damit auch bei
-   * grossen Installationen Redis nicht blockiert) nach allen einzelnen
-   * States mit einer unterstuetzten Rolle und meldet jeden Treffer per
-   * setSelectDevice() beim Frontend an.
+   * Scans the objects DB (Redis SCAN, not KEYS - so Redis is not blocked
+   * even on large installations) for all individual states with a
+   * supported role and reports each match to the frontend via
+   * setSelectDevice().
    */
   async discoverStateDevices() {
     const rolePrefixes = Array.isArray(this.config.rolePrefixes) && this.config.rolePrefixes.length > 0 ? this.config.rolePrefixes : DEFAULT_ROLE_PREFIXES;
@@ -288,25 +291,25 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         const id = keys[i].slice('cfg.o.'.length);
         if (excludeSubstrings.some((s) => id.includes(s))) continue;
         const leafSegment = id.split('.').pop();
-        // "TargetPosition" wird nie als eigenstaendiges Geraet gefuehrt,
-        // sondern (falls vorhanden) als Sollwert-Begleiter von "Position"
-        // mit demselben Rollo zusammengefasst (siehe targetId unten).
+        // "TargetPosition" is never treated as a standalone device, but
+        // (if present) combined with "Position" as its target-value
+        // companion for the same blind (see targetId below).
         if (kind === 'cover' && leafSegment === 'TargetPosition') continue;
         const leafName = (obj.common.name && (obj.common.name.de || obj.common.name.en)) || '';
         const name = await this.resolveFriendlyName(id, leafName);
-        // Ohne einen "echten" uebergeordneten Geraete-/Kanalnamen ist ein
-        // Treffer meistens kein physisches Geraet, sondern z.B. eine von
-        // einem Skript angelegte lose Variable mit zufaellig passender
-        // Rolle. Per Default ausblenden, per "requireDeviceName": false
-        // in der Config abschaltbar, falls doch gewuenscht.
+        // Without a "real" parent channel/device name, a match is
+        // usually not a physical device but e.g. a loose variable
+        // created by a script that happens to have a matching role.
+        // Hidden by default; can be disabled via "requireDeviceName":
+        // false in the config if desired anyway.
         if (requireDeviceName && name === null) continue;
         const finalName = name ?? this.prettifyRawId(id);
 
-        // Rollo mit separatem Soll-Positions-State (z.B. Shelly
-        // "Cover0.Position" + "Cover0.TargetPosition")? Dann als Paar
-        // fuehren, damit wir spaeter Ist/Soll/Bewegungsstatus korrekt
-        // gemeinsam setzen koennen (Matter WindowCovering unterstuetzt das
-        // nativ ueber currentPosition/targetPosition/operationalStatus).
+        // Blind with a separate target-position state (e.g. Shelly
+        // "Cover0.Position" + "Cover0.TargetPosition")? Then treat them
+        // as a pair so we can later set current/target/movement status
+        // correctly together (Matter WindowCovering supports this
+        // natively via currentPosition/targetPosition/operationalStatus).
         let targetId = null;
         if (kind === 'cover') {
           const parentPath = id.slice(0, id.length - leafSegment.length - 1);
@@ -323,22 +326,22 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Universeller Namens-Ansatz (funktioniert adapterunabhaengig, nicht nur
-   * fuer Shelly): Der einzelne State selbst heisst bei praktisch jedem
-   * ioBroker-Adapter nur generisch "Switch"/"Schalter"/"Position" - das
-   * eigentliche, unterscheidbare Geraet steckt eine oder mehrere Ebenen
-   * hoeher als "channel"/"device"-Objekt mit eigenem common.name (z.B. der
-   * vom Nutzer vergebene Geraetename). Wir laufen die ID-Hierarchie von der
-   * vollen State-ID aus nach oben (jeweils das letzte ".segment" entfernen)
-   * und nehmen den ersten gefundenen Eltern-Namen. Ist der Blattname selbst
-   * schon spezifisch (z.B. bei manchen Adaptern), wird er angehaengt, sonst
-   * ersetzt der Elternname ihn komplett.
+   * Universal naming approach (adapter-independent, not just for
+   * Shelly): the individual state itself is named only generically
+   * ("Switch"/"Position"/etc.) by practically every ioBroker adapter -
+   * the actual, distinguishable device sits one or more levels higher,
+   * as a "channel"/"device" object with its own common.name (e.g. the
+   * device name the user assigned). We walk the ID hierarchy upward from
+   * the full state ID (removing the last ".segment" each time) and use
+   * the first parent name found. If the leaf name itself is already
+   * specific (as with some adapters), it is appended; otherwise the
+   * parent name replaces it entirely.
    */
   async resolveFriendlyName(id, leafName) {
     const genericLeafNames = ['switch', 'schalter', 'state', 'on', 'off', 'position', 'level', 'value', 'relay'];
     const parts = id.split('.');
-    // parts[0] = Adaptername, parts[1] = Instanznummer - mindestens diese
-    // zwei behalten, alles darunter (channel/device-Ebenen) durchprobieren.
+    // parts[0] = adapter name, parts[1] = instance number - keep at
+    // least these two, try every level below (channel/device levels).
     for (let i = parts.length - 1; i > 1; i--) {
       const candidateId = parts.slice(0, i).join('.');
       try {
@@ -347,10 +350,10 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         const obj = JSON.parse(raw);
         if (obj.type === 'channel' || obj.type === 'device') {
           let parentName = obj.common?.name ? obj.common.name.de || obj.common.name.en : null;
-          // Viele Adapter (u.a. Shelly) spiegeln den vom Geraet selbst
-          // konfigurierten Namen zusaetzlich als eigenen ".name"-STATE
-          // (nicht als common.name-Metadatum) - das ist oft die einzige
-          // Quelle fuer einen echten, vom Nutzer/Geraet vergebenen Namen.
+          // Many adapters (Shelly among others) additionally mirror the
+          // name configured on the device itself as its own ".name"
+          // STATE (not as a common.name metadata field) - this is often
+          // the only source for a real, user/device-assigned name.
           if (!parentName) {
             try {
               const nameStateRaw = await this.redisCmd.get(`io.${candidateId}.name`);
@@ -359,7 +362,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
                 if (nameState.val && typeof nameState.val === 'string') parentName = nameState.val;
               }
             } catch {
-              // ignorieren
+              // ignore
             }
           }
           if (!parentName) continue;
@@ -367,32 +370,33 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
           return `${parentName} ${leafName}`;
         }
       } catch {
-        // Ignorieren und naechst-hoehere Ebene probieren
+        // ignore and try the next level up
       }
     }
-    // Kein "echter" Kanal-/Geraete-Name gefunden.
+    // No "real" channel/device name found.
     return null;
   }
 
   /**
-   * Letzter Ausweg, wenn ioBroker selbst gar keinen Namen fuer das Geraet
-   * kennt (z.B. Shelly-Geraet nie manuell umbenannt): Statt der vollen,
-   * technischen ID mit MAC-Adresse zumindest eine halbwegs lesbare
-   * Kurzform bauen (Adaptername + Instanznummer weglassen, alles nach "#"
-   * in jedem Pfadsegment abschneiden). Kein Ersatz fuer einen echten Namen,
-   * aber besser lesbar als "shellyplus1#e465b8f2a3d8#1.Relay0.Switch".
+   * Last resort when ioBroker itself has no name for the device at all
+   * (e.g. a Shelly device that was never renamed manually): instead of
+   * the full, technical ID with a MAC address, build at least a
+   * somewhat readable short form (drop adapter name + instance number,
+   * cut off everything after "#" in each path segment). Not a
+   * replacement for a real name, but more readable than
+   * "shellyplus1#e465b8f2a3d8#1.Relay0.Switch".
    */
   prettifyRawId(id) {
-    const parts = id.split('.').slice(2); // Adaptername + Instanznummer weg
+    const parts = id.split('.').slice(2); // drop adapter name + instance number
     const cleaned = parts.map((seg) => seg.split('#')[0]).filter(Boolean);
     return cleaned.length > 0 ? cleaned.join(' ') : id;
   }
 
   /**
-   * Erkennt Roborock-Sauger an ihrer charakteristischen Objekt-Struktur
-   * "<adapter>.<instance>.Devices.<deviceId>.deviceStatus.state" - das ist
-   * exakt der State, den unser frueheres dediziertes Roborock-Plugin schon
-   * genutzt hat.
+   * Detects Roborock vacuums by their characteristic object structure
+   * "<adapter>.<instance>.Devices.<deviceId>.deviceStatus.state" - this
+   * is exactly the state our earlier dedicated Roborock plugin already
+   * used.
    */
   async discoverVacuums() {
     const found = [];
@@ -402,12 +406,12 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       const [nextCursor, keys] = await this.redisCmd.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
       cursor = nextCursor;
       for (const key of keys) {
-        const idPart = key.slice('cfg.o.'.length, -'.deviceStatus.state'.length); // z.B. "roborock.0.Devices.7bp2..."
+        const idPart = key.slice('cfg.o.'.length, -'.deviceStatus.state'.length); // e.g. "roborock.0.Devices.7bp2..."
         const m = idPart.match(/^(.+)\.Devices\.([^.]+)$/);
         if (!m) continue;
         const [, instance, deviceId] = m;
         const base = `${instance}.Devices.${deviceId}`;
-        let name = `Staubsauger ${deviceId.slice(0, 6)}`;
+        let name = `Vacuum ${deviceId.slice(0, 6)}`;
         try {
           const deviceObjRaw = await this.redisCmd.get(`cfg.o.${instance}.Devices.${deviceId}`);
           if (deviceObjRaw) {
@@ -417,7 +421,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
             }
           }
         } catch {
-          // Fallback-Name bleibt bestehen
+          // keep the fallback name
         }
         found.push({ id: base, serial: deviceId, name, kind: 'vacuum', base });
         this.setSelectDevice(base, name, undefined, 'robot_vacuum');
@@ -427,11 +431,11 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Liest Host/Port/Typ der ioBroker-Datenbank direkt aus iobroker.json -
-   * damit funktioniert die Verbindung automatisch sowohl im Datei-Modus
-   * (eingebauter Simulator, Standardport 9000 fuer States) als auch mit
-   * echtem Redis (z.B. Port 6379), ohne dass wir das selbst konfigurieren
-   * muessten.
+   * Reads host/port/type of the ioBroker database directly from
+   * iobroker.json - this way the connection works automatically both in
+   * file mode (built-in simulator, default port 9000 for states) and
+   * with real Redis (e.g. port 6379), without us having to configure it
+   * ourselves.
    */
   readIobrokerDbConfig() {
     const dataDir = this.config.iobrokerDataDir || DEFAULT_IOBROKER_DATA_DIR;
@@ -440,7 +444,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     try {
       parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
     } catch (err) {
-      throw new Error(`Konnte ${cfgPath} nicht lesen (${err.message}). "iobrokerDataDir" in der Plugin-Config korrekt gesetzt?`);
+      throw new Error(`Could not read ${cfgPath} (${err.message}). Is "iobrokerDataDir" set correctly in the plugin config?`);
     }
     const statesCfg = parsed.states || {};
     return {
@@ -478,11 +482,12 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         .createDefaultWindowCoveringClusterServer();
 
       if (targetId) {
-        // Rollo mit getrenntem Ist-/Soll-Position-State (z.B. Shelly
-        // "Position" + "TargetPosition"): Matter WindowCovering bildet das
-        // nativ ab (current/target/operationalStatus). Befehle schreiben
-        // auf den Soll-State - das physische Geraet faehrt selbststaendig
-        // dorthin und meldet den Ist-Wert laufend zurueck.
+        // Blind with separate current/target position states (e.g.
+        // Shelly "Position" + "TargetPosition"): Matter WindowCovering
+        // models this natively (current/target/operationalStatus).
+        // Commands write to the target state - the physical device
+        // moves there on its own and continuously reports the current
+        // value back.
         let lastCurrent = null;
         let lastTarget = null;
 
@@ -498,8 +503,8 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         endpoint.addCommandHandler('upOrOpen', async () => this.writeIobrokerState(targetId, this.toIobrokerBlindValue(0)));
         endpoint.addCommandHandler('downOrClose', async () => this.writeIobrokerState(targetId, this.toIobrokerBlindValue(100)));
         endpoint.addCommandHandler('stopMotion', async () => {
-          // "Stop" heisst hier: Soll-Position auf die aktuelle Ist-Position
-          // setzen, damit das Geraet an Ort und Stelle stehen bleibt.
+          // "Stop" here means: set the target position to the current
+          // position, so the device stays where it is.
           if (lastCurrent !== null) await this.writeIobrokerState(targetId, this.toIobrokerBlindValue(Math.round(lastCurrent / 100)));
         });
         endpoint.addCommandHandler('goToLiftPercentage', async ({ request }) => {
@@ -518,10 +523,10 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
           applyCombined();
         });
       } else {
-        // Einfacher Fall: nur ein einzelner Positions-State, kein
-        // getrennter Sollwert - Ist und Soll sind dann immer identisch,
-        // Bewegungsstatus bleibt "Stopped" (wir haben keine Information
-        // ueber eine laufende Fahrt).
+        // Simple case: only a single position state, no separate target
+        // value - current and target are then always identical,
+        // movement status stays "Stopped" (we have no information about
+        // an ongoing movement).
         endpoint.addCommandHandler('upOrOpen', async ({ attributes }) => {
           attributes.currentPositionLiftPercent100ths = 0;
           await this.writeIobrokerState(id, this.toIobrokerBlindValue(0));
@@ -531,7 +536,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
           await this.writeIobrokerState(id, this.toIobrokerBlindValue(100));
         });
         endpoint.addCommandHandler('stopMotion', async () => {
-          this.log.info(`Stop-Kommando fuer ${id} empfangen (kein getrennter Soll-State bekannt, nichts zu tun)`);
+          this.log.info(`Stop command received for ${id} (no separate target state known, nothing to do)`);
         });
         endpoint.addCommandHandler('goToLiftPercentage', async ({ request, attributes }) => {
           attributes.currentPositionLiftPercent100ths = request.liftPercent100thsValue;
@@ -546,14 +551,14 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         });
       }
     } else {
-      this.log.warn(`Geraete-Kind "${kind}" fuer "${id}" wird nicht unterstuetzt. Wird uebersprungen.`);
+      this.log.warn(`Device kind "${kind}" for "${id}" is not supported. Skipping.`);
       return;
     }
 
     await this.registerDevice(endpoint);
     this.endpoints.set(id, endpoint);
     this.kinds.set(id, kind);
-    this.log.info(`Geraet "${name}" fuer "${id}" (${kind}) registriert.`);
+    this.log.info(`Device "${name}" for "${id}" (${kind}) registered.`);
 
     const stateRaw = await this.redisCmd.get(`io.${id}`);
     if (stateRaw) this.stateWatchers.get(id)?.(JSON.parse(stateRaw));
@@ -567,10 +572,10 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Legt einen Roborock-Sauger als Matter RoboticVacuumCleaner an. Nutzt
-   * dieselbe Zustands-Zuordnung (mapRoborockOperationalState) und dieselben
-   * Command-/State-Pfade wie unser frueheres dediziertes Plugin, nur jetzt
-   * per direkter Redis-Verbindung statt Socket.IO.
+   * Creates a Roborock vacuum as a Matter RoboticVacuumCleaner. Uses the
+   * same state mapping (mapRoborockOperationalState) and the same
+   * command/state paths as our earlier dedicated plugin, just now via a
+   * direct Redis connection instead of Socket.IO.
    */
   async addVacuumDevice({ serial, name, base }) {
     const stateIdOperational = `${base}.deviceStatus.state`;
@@ -592,7 +597,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     await this.registerDevice(vacuum);
     this.endpoints.set(base, vacuum);
     this.kinds.set(base, 'vacuum');
-    this.log.info(`Sauger "${name}" (${serial}) registriert.`);
+    this.log.info(`Vacuum "${name}" (${serial}) registered.`);
 
     this.stateWatchers.set(stateIdOperational, (state) => {
       const opState = mapRoborockOperationalState(Number(state.val));
@@ -600,9 +605,9 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       this.log.debug(`Roborock state=${state.val} -> RvcOperationalState=${opState}`);
     });
     this.stateWatchers.set(stateIdBattery, (state) => {
-      this.log.debug(`${name}: Batteriestand ${state.val}%`);
-      // PowerSource-Cluster-Update kann bei Bedarf hier ergaenzt werden,
-      // sobald der genaue Attributname/Skalierung final verifiziert ist.
+      this.log.debug(`${name}: battery level ${state.val}%`);
+      // A PowerSource cluster update can be added here later, once the
+      // exact attribute name/scaling has been finally verified.
     });
 
     for (const stateId of [stateIdOperational, stateIdBattery]) {
@@ -613,12 +618,12 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Generischer Sauger fuer den Baukasten (customDevices, type
-   * "vacuumSimple") - im Gegensatz zur automatischen Roborock-Erkennung
-   * (die Roborocks spezifische Zahlencodes fuer den Betriebsstatus kennt)
-   * hier bewusst vereinfacht: nur "laeuft gerade" (ja/nein) statt
-   * feingranularer Zustaende (Fehler/Laden/etc.), da sich Statuscodes
-   * zwischen Saugroboter-Adaptern nicht verallgemeinern lassen.
+   * Generic vacuum for the device builder (customDevices, type
+   * "vacuumSimple") - unlike the automatic Roborock detection (which
+   * knows Roborock's specific numeric operational-state codes), this is
+   * deliberately simplified: only "currently running" (yes/no) instead
+   * of fine-grained states (error/charging/etc.), since status codes
+   * cannot be generalized across different vacuum-robot adapters.
    */
   async addGenericVacuumDevice({ name, isCleaningId, startId, pauseId, dockId }) {
     const safeId = isCleaningId.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
@@ -635,7 +640,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     await this.registerDevice(vacuum);
     this.endpoints.set(isCleaningId, vacuum);
     this.kinds.set(isCleaningId, 'vacuum');
-    this.log.info(`Generischer Sauger "${name}" registriert (vereinfachtes Status-Modell: laeuft/laeuft nicht).`);
+    this.log.info(`Generic vacuum "${name}" registered (simplified status model: running/not running).`);
 
     this.stateWatchers.set(isCleaningId, (state) => {
       const opState = state.val ? 0x01 /* Running */ : 0x42 /* Docked */;
@@ -648,10 +653,10 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Generischer, reiner Lese-Sensor fuer den Baukasten (Temperatur,
-   * Feuchte, Kontakt, Bewegung) - alle vier folgen demselben simplen
-   * Ein-State-Muster, daher eine gemeinsame Methode statt vier fast
-   * identischer.
+   * Generic, read-only sensor for the device builder (temperature,
+   * humidity, contact, occupancy) - all four follow the same simple
+   * single-state pattern, hence one shared method instead of four nearly
+   * identical ones.
    */
   async addSensorDevice({ name, stateId, sensorKind, invert }) {
     const safeId = stateId.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
@@ -686,7 +691,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       this.stateWatchers.set(stateId, (state) => {
         let closed = !!state.val;
         if (invert) closed = !closed;
-        // Matter BooleanState fuer ContactSensor: true = Kontakt/geschlossen.
+        // Matter BooleanState for ContactSensor: true = contact/closed.
         endpoint.setAttribute(BooleanState.id, 'stateValue', closed, this.log);
       });
     } else if (sensorKind === 'occupancy') {
@@ -701,14 +706,14 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
         endpoint.setAttribute(OccupancySensing.id, 'occupancy', { occupied }, this.log);
       });
     } else {
-      this.log.warn(`Unbekannte Sensor-Art "${sensorKind}" fuer "${name}".`);
+      this.log.warn(`Unknown sensor kind "${sensorKind}" for "${name}".`);
       return;
     }
 
     await this.registerDevice(endpoint);
     this.endpoints.set(stateId, endpoint);
     this.kinds.set(stateId, `sensor:${sensorKind}`);
-    this.log.info(`Sensor "${name}" (${sensorKind}) registriert.`);
+    this.log.info(`Sensor "${name}" (${sensorKind}) registered.`);
 
     const raw = await this.redisCmd.get(`io.${stateId}`);
     if (raw) this.stateWatchers.get(stateId)?.(JSON.parse(raw));
@@ -716,9 +721,9 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   /**
-   * Dimmbares Licht fuer den Baukasten. ioBroker-Rolle "level.dimmer" ist
-   * ueblicherweise 0-100 (Prozent), Matter LevelControl nutzt 1-254 - wird
-   * hier umgerechnet.
+   * Dimmable light for the device builder. The ioBroker role
+   * "level.dimmer" is usually 0-100 (percent), while Matter LevelControl
+   * uses 1-254 - converted here.
    */
   async addDimmerDevice({ name, stateId }) {
     const safeId = stateId.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
@@ -754,7 +759,7 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     await this.registerDevice(endpoint);
     this.endpoints.set(stateId, endpoint);
     this.kinds.set(stateId, 'dimmer');
-    this.log.info(`Dimmer "${name}" registriert.`);
+    this.log.info(`Dimmer "${name}" registered.`);
 
     const raw = await this.redisCmd.get(`io.${stateId}`);
     if (raw) this.stateWatchers.get(stateId)?.(JSON.parse(raw));
@@ -772,19 +777,19 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
       } catch {
         return;
       }
-      // Nur bestaetigte Werte (ack:true) uebernehmen - ack:false sind nur
-      // durchlaufende Befehle, kein tatsaechlicher Geraetezustand.
+      // Only accept confirmed values (ack:true) - ack:false are just
+      // pass-through commands, not an actual device state.
       if (!parsed.ack) return;
       watcher(parsed);
     });
   }
 
   /**
-   * ioBroker-Konvention fuer "level.blind" ist je nach Adapter nicht ganz
-   * einheitlich (manche 0=zu/100=offen, manche umgekehrt). Standardmaessig
-   * gehen wir von 0=offen/100=zu aus (passend zu Matter WindowCovering:
-   * 0=offen, 10000=zu). Falls es bei einem Geraet verkehrt herum faehrt,
-   * "invertBlindPosition": true in der Plugin-Config setzen.
+   * The ioBroker convention for "level.blind" is not entirely uniform
+   * across adapters (some use 0=closed/100=open, others the reverse). By
+   * default we assume 0=open/100=closed (matching Matter WindowCovering:
+   * 0=open, 10000=closed). If a device moves the wrong way, set
+   * "invertBlindPosition": true in the plugin config.
    */
   toIobrokerBlindValue(matterPercentOpen0Closed100) {
     return this.config.invertBlindPosition ? 100 - matterPercentOpen0Closed100 : matterPercentOpen0Closed100;
@@ -806,16 +811,16 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
     });
     await this.redisCmd.set(`io.${id}`, payload);
     await this.redisCmd.publish(`io.${id}`, payload);
-    this.log.info(`Befehl an ioBroker gesendet: ${id} = ${JSON.stringify(val)}`);
+    this.log.info(`Command sent to ioBroker: ${id} = ${JSON.stringify(val)}`);
   }
 
   async onShutdown(reason) {
-    this.log.info(`ioBroker-Bridge wird beendet: ${reason ?? ''}`);
+    this.log.info(`ioBroker bridge shutting down: ${reason ?? ''}`);
     try {
       if (this.redisSub) await this.redisSub.quit();
       if (this.redisCmd) await this.redisCmd.quit();
     } catch (err) {
-      this.log.debug(`Fehler beim Schliessen der Redis-Verbindungen: ${err.message}`);
+      this.log.debug(`Error closing the Redis connections: ${err.message}`);
     }
     await super.onShutdown(reason);
   }
@@ -824,4 +829,3 @@ class IobrokerBridgePlatform extends MatterbridgeDynamicPlatform {
 export default function initializePlugin(matterbridge, log, config) {
   return new IobrokerBridgePlatform(matterbridge, log, config);
 }
-

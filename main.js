@@ -3,11 +3,11 @@
 /**
  * ioBroker.matterbridge
  * -----------------------
- * Installiert, startet, überwacht und stoppt eine native Matterbridge-
- * Instanz als Kindprozess. Bindet KEINE eigene Matter-Logik ein - die
- * komplette Cluster-/Plugin-Verwaltung übernimmt Matterbridge selbst.
- * Die Konfiguration von Matterbridge (Plugins, Geräte, Bridges) läuft
- * über den eingebetteten Admin-Tab (tab.html), nicht über diesen Adapter.
+ * Installs, starts, monitors, and stops a native Matterbridge instance
+ * as a child process. Does NOT implement any Matter logic itself - all
+ * cluster/plugin management is handled by Matterbridge itself. Matterbridge
+ * configuration (plugins, devices, bridges) is done via the embedded admin
+ * tab (tab.html), not through this adapter.
  */
 
 const utils = require('@iobroker/adapter-core');
@@ -29,18 +29,17 @@ class MatterbridgeAdapter extends utils.Adapter {
     this.stoppedByUser = false;
     this.backoffMs = 5000;
 
-    // WICHTIG: NICHT mehr unterhalb von __dirname (also innerhalb von
-    // /opt/iobroker/node_modules/...) ablegen! Ein manuelles oder
-    // automatisches "Adapter aktualisieren" fuer IRGENDEINEN anderen
-    // Adapter loest bei ioBroker intern ein npm install/prune auf Root-
-    // Ebene von /opt/iobroker aus - und npm's Deduplizierungs-/Aufraeum-
-    // Mechanismus durchsucht dabei den GESAMTEN node_modules-Baum, findet
-    // unseren isoliert wirkenden matterbridgeInstall-Ordner faelschlich als
-    // "nicht referenziert" und loescht Teile davon (das war die Ursache
-    // fuer die immer wiederkehrenden mysterioesen Abstuerze/Rueckspruenge
-    // im Laufe des heutigen Tages). Stattdessen unter iobroker-data
-    // ablegen - das ist ioBrokers eigener Daten-/Konfigurationsordner,
-    // vollkommen ausserhalb des npm-Paketbaums, also immun dagegen.
+    // IMPORTANT: do NOT place this below __dirname (i.e. inside
+    // /opt/iobroker/node_modules/...)! A manual or automatic "update
+    // adapter" for ANY other adapter triggers an internal npm
+    // install/prune at the root of /opt/iobroker - and npm's
+    // deduplication/cleanup mechanism scans the ENTIRE node_modules tree,
+    // incorrectly treats our seemingly isolated matterbridgeInstall folder
+    // as "unreferenced", and deletes parts of it (this was the cause of
+    // recurring, mysterious crashes/reversions we hit in production).
+    // Store it under iobroker-data instead - ioBroker's own data/config
+    // directory, completely outside the npm package tree and therefore
+    // immune to this.
     const dataDir = this.config.dataDir || path.join(__dirname, '..', '..', 'iobroker-data');
     const mbDataDir = path.join(dataDir, 'matterbridge');
     this.mbInstallDir = path.join(mbDataDir, 'matterbridgeInstall');
@@ -50,21 +49,23 @@ class MatterbridgeAdapter extends utils.Adapter {
 
     this.mbBin = path.join(this.mbInstallDir, 'bin', 'matterbridge');
 
-    // Isolierte, eigene Node.js-Laufzeit NUR fuer den Matterbridge-Kindprozess.
-    // Matterbridge (bzw. dessen @matterbridge/* / @matter/* Abhaengigkeiten)
-    // kann eine neuere Node-Version voraussetzen als das System-Node, mit dem
-    // ioBroker selbst laeuft. Um das System-Node fuer ioBroker und andere
-    // Adapter NICHT anzufassen, laden wir bei Bedarf eine eigene, in sich
-    // abgeschlossene Node-Version herunter und benutzen sie ausschliesslich
-    // fuer Matterbridge (Installation per npm UND Start des Prozesses).
+    // Own, isolated Node.js runtime ONLY for the Matterbridge child
+    // process. Matterbridge (and its @matterbridge/* / @matter/*
+    // dependencies) may require a newer Node.js version than the system
+    // Node.js that runs ioBroker itself. To avoid touching the system
+    // Node.js for ioBroker and other adapters, we download a self-
+    // contained Node.js version on demand and use it exclusively for
+    // Matterbridge (both for the npm installation and for running the
+    // process).
     this.nodeMajor = this.config.nodeMajor || 24;
     this.nodeBin = path.join(this.nodeRuntimeDir, 'bin', 'node');
     this.nodeRuntimeBinDir = path.join(this.nodeRuntimeDir, 'bin');
 
-    // Sicherheitsnetz: falls der Adapter-Node-Prozess selbst hart beendet
-    // wird (z.B. weil js-controller nicht auf onUnload wartet), trotzdem
-    // versuchen, den Matterbridge-Kindprozess synchron mitzunehmen -
-    // sonst bleibt er als Orphan-Prozess auf dem Port hängen.
+    // Safety net: if the adapter's own Node.js process is terminated
+    // hard (e.g. because js-controller does not wait for onUnload),
+    // still try to take the Matterbridge child process down with it
+    // synchronously - otherwise it would remain as an orphan process
+    // holding the port.
     const killChildSync = () => {
       if (this.child) {
         try { this.child.kill('SIGKILL'); } catch (e) { /* ignore */ }
@@ -76,13 +77,13 @@ class MatterbridgeAdapter extends utils.Adapter {
   }
 
   /**
-   * Migriert eine bestehende Installation vom alten Ort (unterhalb des
-   * Adapter-Ordners in /opt/iobroker/node_modules/... - anfaellig fuer
-   * npm install/prune bei JEDEM Adapter-Update) zum neuen, sicheren Ort
-   * unter iobroker-data. Laeuft synchron im Constructor, VOR dem ersten
-   * Zugriff auf die neuen Pfade. Bereits existierende Installationen
-   * (Pairing, Plugins, Node-Runtime) bleiben dabei vollstaendig erhalten -
-   * kein manueller Eingriff noetig.
+   * Migrates an existing installation from the old location (below the
+   * adapter directory in /opt/iobroker/node_modules/... - vulnerable to
+   * npm install/prune on EVERY adapter update) to the new, safe location
+   * under iobroker-data. Runs synchronously in the constructor, BEFORE
+   * the new paths are used for the first time. Any existing installation
+   * (pairing, plugins, Node runtime) is fully preserved - no manual
+   * action required.
    */
   _migrateOldLocationIfNeeded(mbDataDir) {
     const oldInstall = path.join(__dirname, 'matterbridgeInstall');
@@ -90,10 +91,10 @@ class MatterbridgeAdapter extends utils.Adapter {
     const oldNodeRuntime = path.join(__dirname, 'nodeRuntime');
     const newInstall = path.join(mbDataDir, 'matterbridgeInstall');
 
-    if (fs.existsSync(newInstall)) return; // Migration schon erledigt oder Frischinstallation
+    if (fs.existsSync(newInstall)) return; // already migrated, or fresh install
 
     const anyOldExists = fs.existsSync(oldInstall) || fs.existsSync(oldStorage) || fs.existsSync(oldNodeRuntime);
-    if (!anyOldExists) return; // Nichts zu migrieren (Frischinstallation)
+    if (!anyOldExists) return; // nothing to migrate (fresh install)
 
     try {
       fs.mkdirSync(mbDataDir, { recursive: true });
@@ -106,42 +107,42 @@ class MatterbridgeAdapter extends utils.Adapter {
           fs.renameSync(src, path.join(mbDataDir, name));
         }
       }
-      this.log.info(`Bestehende Matterbridge-Installation von ${__dirname} nach ${mbDataDir} migriert (Schutz vor npm install/prune bei anderen Adapter-Updates).`);
+      this.log.info(`Migrated existing Matterbridge installation from ${__dirname} to ${mbDataDir} (protects against npm install/prune during other adapters' updates).`);
     } catch (err) {
-      // Log erst nach super() verfuegbar - hier ggf. noch nicht, daher
-      // Fallback auf console.error falls this.log noch nicht bereitsteht.
+      // this.log may not be ready yet at this point (still inside the
+      // constructor, before super() has finished initializing logging) -
+      // fall back to console.error in that case.
       const logFn = this.log?.error ? (msg) => this.log.error(msg) : (msg) => console.error(msg);
-      logFn(`Migration der Matterbridge-Installation fehlgeschlagen: ${err.message}. Bitte manuell von ${__dirname} nach ${mbDataDir} verschieben.`);
+      logFn(`Failed to migrate the Matterbridge installation: ${err.message}. Please move it manually from ${__dirname} to ${mbDataDir}.`);
     }
   }
 
   async onReady() {
     this.subscribeStates('control.*');
 
-    // WICHTIG: Zusaetzlich zu den Umgebungsvariablen, die wir selbst beim
-    // Spawnen von Matterbridge setzen, tragen wir den Prefix auch dauerhaft
-    // in die persoenliche ~/.npmrc des aktuellen Users (des Users, unter dem
-    // dieser Adapter-Prozess laeuft) ein. Grund: Matterbridges EIGENER
-    // interner "Install a plugin"-Mechanismus (Button im Frontend) hat sich
-    // als nicht zuverlaessig env-vererbend erwiesen - er landete trotz
-    // korrekt gesetztem NPM_CONFIG_PREFIX beim Spawnen von Matterbridge immer
-    // wieder am System-Standard-Ort. ~/.npmrc wird von npm dagegen IMMER
-    // gelesen, unabhaengig davon, wie/von welchem Code npm aufgerufen wird -
-    // das ist robuster als sich auf Env-Vererbung durch fremden Code zu
-    // verlassen.
+    // IMPORTANT: in addition to the environment variables we set
+    // ourselves when spawning Matterbridge, we also persist the npm
+    // prefix in the current user's own ~/.npmrc. Reason: Matterbridge's
+    // OWN internal "install a plugin" mechanism (the button in its
+    // frontend) has proven unreliable at inheriting environment
+    // variables - it kept landing at the system default location despite
+    // NPM_CONFIG_PREFIX being set correctly when Matterbridge itself was
+    // spawned. npm, on the other hand, ALWAYS reads ~/.npmrc regardless
+    // of how/by which code it is invoked - more robust than relying on
+    // env inheritance through third-party code.
     await this.ensureNpmrcPrefix();
 
     const nodeRuntimeInstalled = await this.checkNodeRuntimeInstalled();
     await this.setStateAsync('info.nodeRuntimeReady', nodeRuntimeInstalled, true);
 
     if (!nodeRuntimeInstalled) {
-      this.log.info(`Isolierte Node.js-${this.nodeMajor}-Laufzeit fuer Matterbridge nicht gefunden - lade sie jetzt herunter (nur fuer Matterbridge, System-Node bleibt unberuehrt)`);
+      this.log.info(`Isolated Node.js ${this.nodeMajor} runtime for Matterbridge not found - downloading it now (only used for Matterbridge, the system Node.js is left untouched)`);
       try {
         await this.installNodeRuntime();
         await this.setStateAsync('info.nodeRuntimeReady', true, true);
-        this.log.info('Node.js-Laufzeit fuer Matterbridge erfolgreich installiert');
+        this.log.info('Node.js runtime for Matterbridge installed successfully');
       } catch (err) {
-        this.log.error(`Download/Installation der isolierten Node.js-Laufzeit fehlgeschlagen: ${err.message}. Matterbridge kann ohne kompatible Node-Version nicht zuverlaessig laufen.`);
+        this.log.error(`Failed to download/install the isolated Node.js runtime: ${err.message}. Matterbridge cannot run reliably without a compatible Node.js version.`);
         return;
       }
     }
@@ -150,12 +151,12 @@ class MatterbridgeAdapter extends utils.Adapter {
     await this.setStateAsync('info.installed', installed, true);
 
     if (!installed) {
-      this.log.info('Matterbridge ist noch nicht installiert - installiere jetzt lokal per npm');
+      this.log.info('Matterbridge is not installed yet - installing it now locally via npm');
       try {
         await this.installMatterbridge();
         await this.setStateAsync('info.installed', true, true);
       } catch (err) {
-        this.log.error(`Installation fehlgeschlagen: ${err.message}. Bitte manuell prüfen (z.B. Rechte für globale npm-Installation).`);
+        this.log.error(`Installation failed: ${err.message}. Please check manually (e.g. permissions for a global npm installation).`);
         return;
       }
     }
@@ -163,7 +164,7 @@ class MatterbridgeAdapter extends utils.Adapter {
     try {
       await this.ensureBridgePlugin();
     } catch (err) {
-      this.log.error(`Mitgeliefertes ioBroker-Bridge-Plugin konnte nicht installiert werden: ${err.message}`);
+      this.log.error(`Could not install the bundled ioBroker bridge plugin: ${err.message}`);
     }
 
     if (this.config.autostart !== false) {
@@ -172,13 +173,13 @@ class MatterbridgeAdapter extends utils.Adapter {
   }
 
   /**
-   * Installiert und registriert das mitgelieferte generische
-   * "matterbridge-iobroker-bridge"-Plugin automatisch, falls es noch nicht
-   * vorhanden ist - damit ist ab Werk kein manueller Zusatzschritt mehr
-   * noetig, um ioBroker-Geraete (Schalter, Rollos, Roborock-Sauger, ...)
-   * ueber Matterbridge bereitzustellen. Das Plugin selbst startet
-   * standardmaessig mit null aktiven Geraeten (reines Opt-in ueber
-   * "whiteList"/"idPrefixes" in der Plugin-Config).
+   * Automatically installs and registers the bundled generic
+   * "matterbridge-iobroker-bridge" plugin if it is not present yet, so
+   * that no manual extra step is required out of the box to expose
+   * ioBroker devices (switches, blinds, Roborock vacuums, ...) through
+   * Matterbridge. The plugin itself starts with zero active devices by
+   * default (pure opt-in via "whiteList"/"idPrefixes" in the plugin
+   * configuration).
    */
   async ensureBridgePlugin() {
     const pluginName = 'matterbridge-iobroker-bridge';
@@ -186,11 +187,11 @@ class MatterbridgeAdapter extends utils.Adapter {
     const pkgPath = path.join(pluginDir, 'package.json');
 
     if (fs.existsSync(pkgPath)) {
-      this.log.debug(`Mitgeliefertes Plugin "${pluginName}" bereits vorhanden.`);
+      this.log.debug(`Bundled plugin "${pluginName}" is already present.`);
       return;
     }
 
-    this.log.info(`Installiere mitgeliefertes Plugin "${pluginName}" (generische ioBroker-Geraete-Bridge)...`);
+    this.log.info(`Installing bundled plugin "${pluginName}" (generic ioBroker device bridge)...`);
     const bundledDir = path.join(__dirname, 'bundledPlugins', pluginName);
     fs.mkdirSync(pluginDir, { recursive: true });
     fs.cpSync(bundledDir, pluginDir, { recursive: true });
@@ -214,16 +215,16 @@ class MatterbridgeAdapter extends utils.Adapter {
     });
 
     await this.runMatterbridgeCli(['-add', pkgPath]);
-    this.log.info(`Plugin "${pluginName}" installiert und registriert (aktuell 0 Geraete aktiv - Auswahl erfolgt ueber "whiteList"/"idPrefixes" in der Plugin-Config im Matterbridge-Frontend).`);
+    this.log.info(`Plugin "${pluginName}" installed and registered (0 devices active for now - selection happens via "whiteList"/"idPrefixes" in the plugin configuration in the Matterbridge frontend).`);
   }
 
   /**
-   * Sorgt dafuer, dass die persoenliche ~/.npmrc des Users, unter dem der
-   * Adapter-Prozess laeuft, eine "prefix="-Zeile enthaelt, die auf unseren
-   * isolierten mbInstallDir zeigt. Idempotent: bestehende, bereits korrekte
-   * Zeile wird nicht angefasst; eine abweichende Zeile wird ersetzt (mit
-   * Logausgabe, damit nichts still ueberschrieben wird); andere Zeilen in
-   * der Datei bleiben unangetastet.
+   * Ensures that the personal ~/.npmrc of the user running the adapter
+   * process contains a "prefix=" line pointing to our isolated
+   * mbInstallDir. Idempotent: an existing, already-correct line is left
+   * untouched; a deviating line is replaced (with a log message so
+   * nothing is silently overwritten); other lines in the file are left
+   * as-is.
    */
   async ensureNpmrcPrefix() {
     const npmrcPath = path.join(os.homedir(), '.npmrc');
@@ -235,7 +236,7 @@ class MatterbridgeAdapter extends utils.Adapter {
       lines = content.split('\n');
     } catch (err) {
       if (err.code !== 'ENOENT') {
-        this.log.warn(`Konnte ${npmrcPath} nicht lesen (${err.message}) - versuche trotzdem, sie neu zu schreiben.`);
+        this.log.warn(`Could not read ${npmrcPath} (${err.message}) - trying to write it anyway.`);
       }
       lines = [];
     }
@@ -245,16 +246,16 @@ class MatterbridgeAdapter extends utils.Adapter {
     if (prefixLineIndex === -1) {
       lines.push(desiredLine);
       fs.writeFileSync(npmrcPath, lines.join('\n').replace(/\n+$/, '\n') || `${desiredLine}\n`);
-      this.log.info(`~/.npmrc: "prefix=${this.mbInstallDir}" ergaenzt (Datei: ${npmrcPath}). Dadurch landen auch Plugin-Installationen ueber Matterbridges eigenen Install-Button garantiert am richtigen Ort.`);
+      this.log.info(`~/.npmrc: added "prefix=${this.mbInstallDir}" (file: ${npmrcPath}). This ensures plugin installations via Matterbridge's own install button also land in the correct location.`);
       return;
     }
 
     if (lines[prefixLineIndex].trim() === desiredLine) {
-      // Bereits korrekt - nichts zu tun.
+      // already correct - nothing to do
       return;
     }
 
-    this.log.warn(`~/.npmrc enthielt einen abweichenden "prefix="-Eintrag ("${lines[prefixLineIndex].trim()}") - wird auf "${desiredLine}" gesetzt, damit Matterbridge-Plugin-Installationen zuverlaessig im isolierten Verzeichnis landen.`);
+    this.log.warn(`~/.npmrc contained a deviating "prefix=" entry ("${lines[prefixLineIndex].trim()}") - setting it to "${desiredLine}" so Matterbridge plugin installations reliably land in the isolated directory.`);
     lines[prefixLineIndex] = desiredLine;
     fs.writeFileSync(npmrcPath, lines.join('\n'));
   }
@@ -266,37 +267,37 @@ class MatterbridgeAdapter extends utils.Adapter {
   }
 
   /**
-   * Ermittelt aus SHASUMS256.txt der gewuenschten Node-Major-Version den
-   * exakten aktuellen Dateinamen fuer die passende Plattform/Architektur,
-   * laedt das Tarball herunter und entpackt es isoliert nach nodeRuntimeDir.
-   * Rein mit Node-Bordmitteln (https) + dem System-"tar"-Kommando, damit
-   * keine zusaetzlichen npm-Abhaengigkeiten noetig sind.
+   * Determines the exact current filename for the requested Node.js
+   * major version and platform/architecture from SHASUMS256.txt, downloads
+   * the tarball, and extracts it in isolation into nodeRuntimeDir. Uses
+   * only built-in Node.js facilities (https) plus the system "tar"
+   * command, so no additional npm dependencies are required.
    */
   async installNodeRuntime() {
     const platform = os.platform(); // 'linux', 'darwin', ...
     const archRaw = os.arch(); // 'x64', 'arm64', ...
 
     if (platform !== 'linux' && platform !== 'darwin') {
-      throw new Error(`Automatischer Node-Runtime-Download wird fuer Plattform "${platform}" nicht unterstuetzt. Bitte manuell Node ${this.nodeMajor}.x nach ${this.nodeRuntimeDir} entpacken.`);
+      throw new Error(`Automatic Node.js runtime download is not supported on platform "${platform}". Please extract Node.js ${this.nodeMajor}.x into ${this.nodeRuntimeDir} manually.`);
     }
     if (archRaw !== 'x64' && archRaw !== 'arm64') {
-      throw new Error(`Automatischer Node-Runtime-Download wird fuer Architektur "${archRaw}" nicht unterstuetzt. Bitte manuell Node ${this.nodeMajor}.x nach ${this.nodeRuntimeDir} entpacken.`);
+      throw new Error(`Automatic Node.js runtime download is not supported on architecture "${archRaw}". Please extract Node.js ${this.nodeMajor}.x into ${this.nodeRuntimeDir} manually.`);
     }
 
-    const tag = `${platform}-${archRaw}`; // z.B. "linux-x64"
+    const tag = `${platform}-${archRaw}`; // e.g. "linux-x64"
     const indexBase = `https://nodejs.org/dist/latest-v${this.nodeMajor}.x`;
 
-    this.log.info(`Suche aktuelle Node.js ${this.nodeMajor}.x Version fuer ${tag}...`);
+    this.log.info(`Looking up the current Node.js ${this.nodeMajor}.x version for ${tag}...`);
     const shasums = await this._httpGetText(`${indexBase}/SHASUMS256.txt`);
 
     const suffix = `-${tag}.tar.gz`;
     const line = shasums.split('\n').find((l) => l.trim().endsWith(suffix) && l.includes(`v${this.nodeMajor}.`));
     if (!line) {
-      throw new Error(`Konnte keine passende Node ${this.nodeMajor}.x Datei fuer ${tag} in SHASUMS256.txt finden.`);
+      throw new Error(`Could not find a matching Node.js ${this.nodeMajor}.x file for ${tag} in SHASUMS256.txt.`);
     }
     const filename = line.trim().split(/\s+/)[1];
     const downloadUrl = `${indexBase}/${filename}`;
-    this.log.info(`Lade ${downloadUrl} herunter...`);
+    this.log.info(`Downloading ${downloadUrl}...`);
 
     fs.rmSync(this.nodeRuntimeDir, { recursive: true, force: true });
     fs.mkdirSync(this.nodeRuntimeDir, { recursive: true });
@@ -304,7 +305,7 @@ class MatterbridgeAdapter extends utils.Adapter {
     const tmpTarball = path.join(os.tmpdir(), filename);
     await this._httpDownloadFile(downloadUrl, tmpTarball);
 
-    this.log.info('Entpacke Node.js-Laufzeit...');
+    this.log.info('Extracting the Node.js runtime...');
     await new Promise((resolve, reject) => {
       exec(`tar -xzf "${tmpTarball}" -C "${this.nodeRuntimeDir}" --strip-components=1`, (err, stdout, stderr) => {
         fs.rm(tmpTarball, { force: true }, () => {});
@@ -318,7 +319,7 @@ class MatterbridgeAdapter extends utils.Adapter {
 
     const ok = await this.checkNodeRuntimeInstalled();
     if (!ok) {
-      throw new Error('Node-Binary nach dem Entpacken nicht gefunden/ausfuehrbar - Download evtl. unvollstaendig.');
+      throw new Error('Node.js binary not found/executable after extraction - the download may be incomplete.');
     }
   }
 
@@ -331,7 +332,7 @@ class MatterbridgeAdapter extends utils.Adapter {
         }
         if (res.statusCode !== 200) {
           res.resume();
-          return reject(new Error(`HTTP ${res.statusCode} beim Abruf von ${url}`));
+          return reject(new Error(`HTTP ${res.statusCode} while fetching ${url}`));
         }
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
@@ -349,7 +350,7 @@ class MatterbridgeAdapter extends utils.Adapter {
         }
         if (res.statusCode !== 200) {
           res.resume();
-          return reject(new Error(`HTTP ${res.statusCode} beim Download von ${url}`));
+          return reject(new Error(`HTTP ${res.statusCode} while downloading ${url}`));
         }
         const fileStream = fs.createWriteStream(destPath);
         res.pipe(fileStream);
@@ -359,7 +360,6 @@ class MatterbridgeAdapter extends utils.Adapter {
     });
   }
 
-
   checkInstalled() {
     return new Promise((resolve) => {
       fs.access(this.mbBin, fs.constants.X_OK, (err) => resolve(!err));
@@ -368,19 +368,19 @@ class MatterbridgeAdapter extends utils.Adapter {
 
   installMatterbridge() {
     return new Promise((resolve, reject) => {
-      // Sauberer Neustart: Reste eines vorherigen fehlgeschlagenen Versuchs entfernen.
+      // Clean start: remove leftovers from a previous failed attempt.
       fs.rmSync(this.mbInstallDir, { recursive: true, force: true });
       fs.mkdirSync(this.mbInstallDir, { recursive: true });
 
       const registryArg = this.config.npmMirror ? ` --registry=${this.config.npmMirror}` : '';
-      // "-g" + eigener NPM_CONFIG_PREFIX statt "--prefix": npm behandelt das
-      // wie eine normale globale Installation (korrekte Auflösung optionaler
-      // Abhängigkeiten wie bei @matterbridge/thread), landet aber komplett
-      // in einem Ordner, der dem iobroker-User gehört - kein EACCES nötig.
-      // WICHTIG: PATH wird so gesetzt, dass npm/node aus der isolierten
-      // Node-Runtime verwendet werden - nicht das System-Node -, damit alle
-      // waehrend der Installation kompilierten/geprueften Teile zur Version
-      // passen, mit der Matterbridge spaeter auch tatsaechlich laeuft.
+      // "-g" plus our own NPM_CONFIG_PREFIX instead of "--prefix": npm
+      // treats this like a normal global installation (correct
+      // resolution of optional dependencies such as @matterbridge/thread),
+      // but it ends up entirely inside a folder owned by the iobroker
+      // user - no EACCES needed. IMPORTANT: PATH is set so that npm/node
+      // are resolved from the isolated Node.js runtime - not the system
+      // Node.js - so that everything compiled/checked during installation
+      // matches the version Matterbridge will actually run with later.
       const cmd = `npm install -g matterbridge --omit=dev${registryArg}`;
       exec(cmd, {
         maxBuffer: 1024 * 1024 * 10,
@@ -394,7 +394,7 @@ class MatterbridgeAdapter extends utils.Adapter {
           this.log.error(stderr);
           return reject(err);
         }
-        this.log.info('Matterbridge erfolgreich installiert (user-lokaler globaler Prefix, isolierte Node-Runtime)');
+        this.log.info('Matterbridge installed successfully (user-local global prefix, isolated Node.js runtime)');
         resolve();
       });
     });
@@ -402,27 +402,26 @@ class MatterbridgeAdapter extends utils.Adapter {
 
   startMatterbridge() {
     if (this.child) {
-      this.log.warn('Matterbridge läuft bereits');
+      this.log.warn('Matterbridge is already running');
       return;
     }
 
-    // Absicherung: falls durch einen vorherigen harten Absturz noch ein
-    // Matterbridge-Prozess mit genau diesem Binary-Pfad übrig ist (den
-    // dieser Adapter-Prozess selbst nicht mehr kennt), erst aufräumen.
+    // Safety net: if a previous hard crash left a Matterbridge process
+    // with this exact binary path running (one this adapter process no
+    // longer knows about), clean it up first.
     exec(`pkill -9 -f "${this.mbBin}"`, () => {
       this._doStartMatterbridge();
     });
   }
 
   /**
-   * Loescht alle "matter.lock"-Dateien unterhalb von mbStorageDir, BEVOR
-   * ein neuer Matterbridge-Prozess gestartet wird. Unser Adapter ist der
-   * einzige legitime Besitzer dieses Prozesses - wenn wir gerade neu
-   * starten, kann keine bestehende Lock-Datei noch "echt" gehalten werden
-   * (z.B. nach einem harten Host-Reboot, bei dem der alte Prozess seine
-   * eigene Sperrdatei nicht mehr aufraeumen konnte). Rekursiv, da jedes
-   * Plugin/jeder Matter-Knoten seine eigene Lock-Datei in einem eigenen
-   * Unterordner hat.
+   * Deletes all "matter.lock" files below mbStorageDir BEFORE a new
+   * Matterbridge process is started. This adapter is the only legitimate
+   * owner of that process - if we are starting fresh, any existing lock
+   * file can no longer be held "for real" (e.g. after a hard host reboot
+   * where the old process could not clean up its own lock file).
+   * Recursive, since every plugin/Matter node has its own lock file in
+   * its own subdirectory.
    */
   cleanupStaleLocks() {
     const walk = (dir) => {
@@ -439,9 +438,9 @@ class MatterbridgeAdapter extends utils.Adapter {
         } else if (entry.name === 'matter.lock') {
           try {
             fs.unlinkSync(full);
-            this.log.info(`Verwaiste Sperrdatei entfernt: ${full}`);
+            this.log.info(`Removed stale lock file: ${full}`);
           } catch (err) {
-            this.log.warn(`Konnte Sperrdatei nicht entfernen (${full}): ${err.message}`);
+            this.log.warn(`Could not remove lock file (${full}): ${err.message}`);
           }
         }
       }
@@ -456,35 +455,36 @@ class MatterbridgeAdapter extends utils.Adapter {
       '-frontend', String(this.config.frontendPort || 8283),
       '-port', String(this.config.matterPort || 5540),
       '-homedir', this.mbStorageDir,
-      // KRITISCH: Ohne dieses Flag stellt Matterbridge seinen eigenen
-      // internen "npm install"-Aufrufen (z.B. ueber den Install-Button im
-      // Frontend) automatisch ein "sudo" voran, sobald der PATH keinen
-      // "/.nvm/versions/node/"-Anteil enthaelt (siehe spawnCommand.js in
-      // @matterbridge/thread). Da wir eine eigene, isolierte Node-Runtime
-      // statt nvm verwenden, wuerde genau das immer zutreffen - und "sudo"
-      // setzt standardmaessig die Umgebung zurueck (eigener PATH aus
-      // /etc/sudoers), wodurch unser NPM_CONFIG_PREFIX und PATH-Override
-      // bei jedem internen Install-Aufruf verloren gingen. "-nosudo" ist
-      // ein offiziell unterstuetztes Matterbridge-CLI-Flag und deaktiviert
-      // dieses Verhalten sauber, ohne Matterbridge-Dateien zu patchen -
-      // uebersteht also auch Matterbridge-Updates.
+      // CRITICAL: without this flag, Matterbridge automatically prepends
+      // "sudo" to its own internal "npm install" calls (e.g. via the
+      // install button in the frontend) whenever PATH does not contain a
+      // "/.nvm/versions/node/" segment (see spawnCommand.js in
+      // @matterbridge/thread). Since we use our own isolated Node.js
+      // runtime instead of nvm, this condition would always be true - and
+      // "sudo" resets the environment by default (its own PATH from
+      // /etc/sudoers), which would wipe our NPM_CONFIG_PREFIX and PATH
+      // override on every internal install call. "-nosudo" is an
+      // officially supported Matterbridge CLI flag that disables this
+      // behavior cleanly, without patching Matterbridge files - so it
+      // also survives Matterbridge updates.
       '-nosudo',
     ];
 
-    // Nur setzen, wenn explizit konfiguriert - sonst wählt Matterbridge
-    // automatisch das erste passende externe Interface.
+    // Only set when explicitly configured - otherwise Matterbridge
+    // automatically picks the first suitable external interface.
     if (this.config.mdnsInterface) {
       args.push('-mdnsinterface', this.config.mdnsInterface);
     }
 
-    // Wichtig: Wir starten NICHT "this.mbBin" direkt (das wuerde ueber den
-    // Shebang "#!/usr/bin/env node" das System-Node verwenden), sondern
-    // explizit unsere isolierte Node-Runtime als Interpreter. So laeuft
-    // Matterbridge garantiert mit einer kompatiblen Node-Version, egal
-    // welches Node-Binary sonst im System-PATH steht.
+    // Important: we do NOT start "this.mbBin" directly (that would use
+    // the system Node.js via the "#!/usr/bin/env node" shebang), but
+    // explicitly run our isolated Node.js runtime as the interpreter.
+    // This guarantees Matterbridge always runs with a compatible Node.js
+    // version, regardless of which Node.js binary is otherwise on the
+    // system PATH.
     this.cleanupStaleLocks();
 
-    this.log.info(`Starte Matterbridge: ${this.nodeBin} ${args.join(' ')}`);
+    this.log.info(`Starting Matterbridge: ${this.nodeBin} ${args.join(' ')}`);
     this.child = spawn(this.nodeBin, args, {
       env: {
         ...process.env,
@@ -497,7 +497,7 @@ class MatterbridgeAdapter extends utils.Adapter {
     this.child.stderr.on('data', (data) => this.log.warn(`[matterbridge] ${data.toString().trim()}`));
 
     this.child.on('spawn', () => {
-      this.backoffMs = 5000; // Backoff zurücksetzen bei erfolgreichem Start
+      this.backoffMs = 5000; // reset backoff after a successful start
       this.setStateAsync('info.running', true, true);
     });
 
@@ -511,13 +511,13 @@ class MatterbridgeAdapter extends utils.Adapter {
       }
 
       if (this.config.autoRestart !== false) {
-        this.log.warn(`Matterbridge beendet (code=${code}, signal=${signal}) - Neustart in ${this.backoffMs / 1000}s`);
+        this.log.warn(`Matterbridge exited (code=${code}, signal=${signal}) - restarting in ${this.backoffMs / 1000}s`);
         this.restartTimer = setTimeout(() => {
           this.startMatterbridge();
-          this.backoffMs = Math.min(this.backoffMs * 2, 5 * 60 * 1000); // Exponential Backoff, max 5min
+          this.backoffMs = Math.min(this.backoffMs * 2, 5 * 60 * 1000); // exponential backoff, max 5 min
         }, this.backoffMs);
       } else {
-        this.log.info(`Matterbridge beendet (code=${code}, signal=${signal})`);
+        this.log.info(`Matterbridge exited (code=${code}, signal=${signal})`);
       }
     });
   }
@@ -532,7 +532,7 @@ class MatterbridgeAdapter extends utils.Adapter {
       try {
         this.child.kill('SIGKILL');
       } catch (e) {
-        // Prozess evtl. schon weg - ignorieren
+        // process may already be gone - ignore
       }
     }
   }
@@ -541,14 +541,14 @@ class MatterbridgeAdapter extends utils.Adapter {
     if (!state || state.ack) return;
 
     if (id.endsWith('control.restart') && state.val) {
-      this.log.info('Manueller Neustart angefordert');
+      this.log.info('Manual restart requested');
       this.stopMatterbridge();
       setTimeout(() => this.startMatterbridge(), 2000);
       this.setStateAsync(id, false, true);
     }
 
     if (id.endsWith('control.stop') && state.val) {
-      this.log.info('Manuelles Stoppen angefordert');
+      this.log.info('Manual stop requested');
       this.stopMatterbridge();
       this.setStateAsync(id, false, true);
     }
@@ -558,7 +558,7 @@ class MatterbridgeAdapter extends utils.Adapter {
       this.setStateAsync(id, '', true);
       if (pluginName) {
         this.installAndAddPlugin(pluginName).catch((err) => {
-          this.log.error(`Plugin-Installation von "${pluginName}" fehlgeschlagen: ${err.message}`);
+          this.log.error(`Failed to install plugin "${pluginName}": ${err.message}`);
         });
       }
     }
@@ -568,23 +568,21 @@ class MatterbridgeAdapter extends utils.Adapter {
       this.setStateAsync(id, '', true);
       if (pluginName) {
         this.removePlugin(pluginName).catch((err) => {
-          this.log.error(`Plugin "${pluginName}" konnte nicht entfernt werden: ${err.message}`);
+          this.log.error(`Could not remove plugin "${pluginName}": ${err.message}`);
         });
       }
     }
   }
 
   /**
-   * Fuehrt einen Matterbridge-CLI-Aufruf (z.B. "-add"/"-remove") explizit mit
-   * der isolierten Node-Runtime und korrektem Storage-Verzeichnis aus - ohne
-   * dass irgendjemand manuell $MB/-homedir in einer Shell setzen muss. Das
-   * ist genau der Teil, der heute beim manuellen Vorgehen immer wieder an
-   * vergessenen "export"-Befehlen in neuen SSH-Sessions gescheitert ist.
+   * Runs a Matterbridge CLI call (e.g. "-add"/"-remove") explicitly with
+   * the isolated Node.js runtime and the correct storage directory,
+   * without requiring anyone to manually set $MB/-homedir in a shell.
    */
   runMatterbridgeCli(args) {
     return new Promise((resolve, reject) => {
       const fullArgs = [this.mbBin, '-homedir', this.mbStorageDir, ...args];
-      this.log.info(`Fuehre aus: ${this.nodeBin} ${fullArgs.join(' ')}`);
+      this.log.info(`Running: ${this.nodeBin} ${fullArgs.join(' ')}`);
       exec(`"${this.nodeBin}" ${fullArgs.map((a) => `"${a}"`).join(' ')}`, {
         maxBuffer: 1024 * 1024 * 10,
         env: {
@@ -604,16 +602,16 @@ class MatterbridgeAdapter extends utils.Adapter {
   }
 
   /**
-   * npm install -g <plugin> explizit mit der isolierten Node-Runtime und
-   * unserem eigenen Prefix (unabhaengig von Matterbridges eigenem, nicht
-   * zuverlaessigem internen Install-Mechanismus im Frontend), danach direkt
-   * bei Matterbridge registrieren.
+   * Runs "npm install -g <plugin>" explicitly with the isolated Node.js
+   * runtime and our own prefix (independent of Matterbridge's own,
+   * unreliable internal install mechanism in the frontend), then
+   * registers it with Matterbridge directly.
    */
   installAndAddPlugin(pluginName) {
     return new Promise((resolve, reject) => {
       const registryArg = this.config.npmMirror ? ` --registry=${this.config.npmMirror}` : '';
       const cmd = `npm install -g ${pluginName}@latest --omit=dev${registryArg}`;
-      this.log.info(`Installiere Plugin "${pluginName}" (isolierte Node/npm-Version, korrekter Prefix)...`);
+      this.log.info(`Installing plugin "${pluginName}" (isolated Node.js/npm version, correct prefix)...`);
       exec(cmd, {
         maxBuffer: 1024 * 1024 * 10,
         env: {
@@ -626,11 +624,11 @@ class MatterbridgeAdapter extends utils.Adapter {
           this.log.error(stderr);
           return reject(err);
         }
-        this.log.info(`Plugin "${pluginName}" installiert, registriere bei Matterbridge...`);
+        this.log.info(`Plugin "${pluginName}" installed, registering it with Matterbridge...`);
         try {
           const pkgPath = path.join(this.mbInstallDir, 'lib', 'node_modules', pluginName, 'package.json');
           await this.runMatterbridgeCli(['-add', pkgPath]);
-          this.log.info(`Plugin "${pluginName}" erfolgreich hinzugefuegt. Matterbridge-Neustart erforderlich, damit es geladen wird.`);
+          this.log.info(`Plugin "${pluginName}" added successfully. Matterbridge needs to be restarted for it to load.`);
           resolve();
         } catch (addErr) {
           reject(addErr);
@@ -642,7 +640,7 @@ class MatterbridgeAdapter extends utils.Adapter {
   async removePlugin(pluginName) {
     const pkgPath = path.join(this.mbInstallDir, 'lib', 'node_modules', pluginName, 'package.json');
     await this.runMatterbridgeCli(['-remove', pkgPath]);
-    this.log.info(`Plugin "${pluginName}" aus Matterbridge entfernt (Dateien auf der Platte bleiben - bei Bedarf manuell loeschen).`);
+    this.log.info(`Plugin "${pluginName}" removed from Matterbridge (files on disk are kept - delete them manually if needed).`);
   }
 
   onUnload(callback) {

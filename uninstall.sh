@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# uninstall.sh - Entfernt die Matterbridge-Adapterinstanz und den Adapter
-# selbst wieder aus ioBroker. Matterbridge-Konfiguration/Storage bleibt
-# im ioBroker-Datenverzeichnis erhalten, außer -f wird angegeben.
+# uninstall.sh - Removes the Matterbridge adapter instance and the adapter
+# itself from ioBroker. Matterbridge configuration/storage in the
+# ioBroker data directory is kept unless -f is given.
 
 set -euo pipefail
 
@@ -11,20 +11,20 @@ ADAPTER_NAME="matterbridge"
 INSTANCE="0"
 FULL_CLEAN="${2:-}"
 
-command -v iobroker >/dev/null 2>&1 || { echo "FEHLER: iobroker-CLI nicht gefunden." >&2; exit 1; }
+command -v iobroker >/dev/null 2>&1 || { echo "ERROR: iobroker CLI not found." >&2; exit 1; }
 
-echo "--> Instanz stoppen und löschen"
+echo "--> Stopping and deleting the instance"
 iobroker stop "${ADAPTER_NAME}.${INSTANCE}" --allow-root >/dev/null 2>&1 || true
 iobroker del "${ADAPTER_NAME}.${INSTANCE}" --allow-root || true
 
-echo "--> Adapter aus node_modules entfernen"
+echo "--> Removing the adapter from node_modules"
 (cd "$IOBROKER_DIR" && npm uninstall "iobroker.${ADAPTER_NAME}") || true
 
 if [ "$FULL_CLEAN" = "-f" ]; then
-  DATA_DIR="$IOBROKER_DIR/iobroker-data/files/${ADAPTER_NAME}.${INSTANCE}"
-  echo "--> Entferne auch Matterbridge-Storage: $DATA_DIR"
+  DATA_DIR="$IOBROKER_DIR/iobroker-data/matterbridge"
+  echo "--> Also removing Matterbridge storage: $DATA_DIR"
   rm -rf "$DATA_DIR"
 fi
 
-echo "Fertig. Falls global installiert und nicht mehr benötigt:"
+echo "Done. If installed globally and no longer needed:"
 echo "  npm uninstall -g matterbridge"
