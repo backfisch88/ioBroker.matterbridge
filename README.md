@@ -68,6 +68,11 @@ Its own configuration is done through the Matterbridge frontend (embedded admin 
 
 ## Changelog
 
+<!--
+  Placeholder for the next version (at the beginning of the line):
+  ### **WORK IN PROGRESS**
+-->
+
 ### 0.7.1 (2026-09-21)
 - Translated all backend/log text, README, and admin UI to English (with German translation retained via i18n)
 - Fixed `package.json`/`io-package.json` metadata for ioBroker repository review (author, license, repository, keywords, engines, dependency versions, adapter category, tier, news, licenseInformation)
