@@ -3,7 +3,7 @@
   "version": "0.7.1",
   "description": "ioBroker adapter that supervises a native Matterbridge instance and exposes ioBroker devices to Matter controllers such as Apple Home, Google Home, and Home Assistant.",
   "main": "main.js",
-  "author": "Henrik",
+  "author": "Henrik Schönhofen <henrik.schoenhofen@icloud.com>",
   "license": "MIT",
   "homepage": "https://github.com/backfisch88/ioBroker.matterbridge#readme",
   "repository": {

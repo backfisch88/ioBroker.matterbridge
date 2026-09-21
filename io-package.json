@@ -28,7 +28,7 @@
       "uk": "Запускає та керує нативним екземпляром Matterbridge і надає пристрої ioBroker контролерам Matter, таким як Apple Home, Google Home і Home Assistant.",
       "zh-cn": "运行并管理原生 Matterbridge 实例，将 ioBroker 设备暴露给 Apple Home、Google Home 和 Home Assistant 等 Matter 控制器。"
     },
-    "authors": ["Henrik"],
+    "authors": ["Henrik Schönhofen <henrik.schoenhofen@icloud.com>"],
     "keywords": [
       "matter",
       "matterbridge",
