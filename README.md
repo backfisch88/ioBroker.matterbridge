@@ -73,6 +73,11 @@ Its own configuration is done through the Matterbridge frontend (embedded admin 
   ### **WORK IN PROGRESS**
 -->
 
+### 0.7.2 (2026-09-21)
+- Fixed the GitHub Actions workflow: added `test:package`/`test:integration` scripts required by the official `ioBroker/testing-action-*` reusable actions
+- Added `fail-fast: false` to the test matrix so all Node/OS combinations run and report instead of cancelling on the first failure
+- Cleaned up the changelog header format (no version-like text outside real `x.y.z` headers)
+
 ### 0.7.1 (2026-09-21)
 - Translated all backend/log text, README, and admin UI to English (with German translation retained via i18n)
 - Fixed `package.json`/`io-package.json` metadata for ioBroker repository review (author, license, repository, keywords, engines, dependency versions, adapter category, tier, news, licenseInformation)
@@ -83,7 +88,9 @@ Its own configuration is done through the Matterbridge frontend (embedded admin 
 ### 0.7.0 (2026-09-15)
 - Moved Matterbridge installation/storage/Node.js runtime from the adapter directory to `iobroker-data/matterbridge/`, with automatic migration of existing installations. Protects against npm install/prune operations triggered by updates of other adapters.
 
-### Earlier versions (0.2.0 - 0.6.x)
+### Earlier versions
+
+Covers releases up to and including 0.6.x:
 
 - Added automatic installation and registration of the bundled `matterbridge-iobroker-bridge` plugin
 - Added the `dataDir` configuration option

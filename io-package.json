@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "matterbridge",
-    "version": "0.7.1",
+    "version": "0.7.2",
     "titleLang": {
       "en": "Matterbridge",
       "de": "Matterbridge",
@@ -71,6 +71,19 @@
     ],
     "stopTimeout": 10000,
     "news": {
+      "0.7.2": {
+        "en": "Fixed the GitHub Actions workflow: added test:package/test:integration scripts required by the official ioBroker testing actions, added fail-fast: false so all test matrix jobs run, and cleaned up the changelog header format.",
+        "de": "GitHub-Actions-Workflow repariert: test:package/test:integration-Skripte ergänzt, die von den offiziellen ioBroker-Testing-Actions benötigt werden, fail-fast: false ergänzt, damit alle Testmatrix-Jobs laufen, und Changelog-Header-Format bereinigt.",
+        "ru": "Исправлен рабочий процесс GitHub Actions: добавлены скрипты test:package/test:integration, необходимые официальным тестовым действиям ioBroker, добавлено fail-fast: false, чтобы выполнялись все задания тестовой матрицы, и очищен формат заголовков журнала изменений.",
+        "pt": "Corrigido o fluxo de trabalho do GitHub Actions: adicionados os scripts test:package/test:integration exigidos pelas ações oficiais de teste do ioBroker, adicionado fail-fast: false para que todos os jobs da matriz de testes sejam executados, e formato do cabeçalho do changelog corrigido.",
+        "nl": "GitHub Actions-workflow gerepareerd: test:package/test:integration-scripts toegevoegd die vereist zijn door de officiële ioBroker-testacties, fail-fast: false toegevoegd zodat alle testmatrixtaken worden uitgevoerd, en changelog-headerformaat opgeschoond.",
+        "fr": "Correction du workflow GitHub Actions : ajout des scripts test:package/test:integration requis par les actions de test officielles ioBroker, ajout de fail-fast: false pour que tous les jobs de la matrice de tests s'exécutent, et nettoyage du format des en-têtes du changelog.",
+        "it": "Corretto il workflow di GitHub Actions: aggiunti gli script test:package/test:integration richiesti dalle azioni di test ufficiali di ioBroker, aggiunto fail-fast: false in modo che vengano eseguiti tutti i job della matrice di test, e ripulito il formato delle intestazioni del changelog.",
+        "es": "Se corrigió el flujo de trabajo de GitHub Actions: se agregaron los scripts test:package/test:integration requeridos por las acciones de prueba oficiales de ioBroker, se agregó fail-fast: false para que se ejecuten todos los trabajos de la matriz de pruebas, y se limpió el formato de los encabezados del changelog.",
+        "pl": "Naprawiono przepływ pracy GitHub Actions: dodano skrypty test:package/test:integration wymagane przez oficjalne akcje testowe ioBroker, dodano fail-fast: false, aby uruchamiały się wszystkie zadania macierzy testów, oraz uporządkowano format nagłówków dziennika zmian.",
+        "uk": "Виправлено робочий процес GitHub Actions: додано скрипти test:package/test:integration, необхідні офіційним тестовим діям ioBroker, додано fail-fast: false, щоб виконувались усі завдання тестової матриці, та очищено формат заголовків журналу змін.",
+        "zh-cn": "修复了 GitHub Actions 工作流：添加了官方 ioBroker 测试操作所需的 test:package/test:integration 脚本，添加了 fail-fast: false 以确保所有测试矩阵任务都能运行，并清理了更新日志标题格式。"
+      },
       "0.7.1": {
         "en": "Repository review preparation: translated backend/log text and README to English, fixed package.json/io-package.json metadata, added stale Matter lock file cleanup on start.",
         "de": "Vorbereitung für die Repository-Prüfung: Backend-/Log-Texte und README ins Englische übersetzt, package.json/io-package.json-Metadaten korrigiert, Aufräumen verwaister Matter-Sperrdateien beim Start ergänzt.",
