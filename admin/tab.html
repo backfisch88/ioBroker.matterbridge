@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!-- Standard ioBroker Admin-Tab Includes -->
+    <link rel="stylesheet" type="text/css" href="../../css/adapter.css">
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; }
+        #mb-frame-container { width: 100%; height: 100%; position: relative; }
+        #mb-frame { width: 100%; height: 100%; border: none; }
+        #mb-status {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: 16px; font-family: sans-serif; color: #666;
+        }
+    </style>
+</head>
+<body>
+<div id="mb-frame-container">
+    <div id="mb-status">Lade Matterbridge-Status ...</div>
+    <iframe id="mb-frame" style="display:none;"></iframe>
+</div>
+
+<script type="text/javascript" src="tab.js"></script>
+</body>
+</html>

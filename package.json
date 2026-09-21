@@ -1,0 +1,12 @@
+{
+  "name": "iobroker.matterbridge",
+  "version": "0.7.1",
+  "description": "ioBroker adapter that supervises a native Matterbridge instance and embeds its UI",
+  "main": "main.js",
+  "dependencies": {
+    "@iobroker/adapter-core": "^3.2.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

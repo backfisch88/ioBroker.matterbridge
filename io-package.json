@@ -1,0 +1,156 @@
+{
+  "common": {
+    "name": "matterbridge",
+    "version": "0.7.1",
+    "title": "Matterbridge",
+    "titleLang": {
+      "en": "Matterbridge Supervisor",
+      "de": "Matterbridge-Prozessverwaltung"
+    },
+    "desc": {
+      "en": "Runs and manages a native Matterbridge instance and embeds its UI as an admin tab",
+      "de": "Startet und verwaltet eine native Matterbridge-Instanz und bindet deren Oberfläche als Admin-Tab ein"
+    },
+    "authors": ["Henrik"],
+    "keywords": ["matter", "matterbridge", "smart home"],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "mode": "daemon",
+    "type": "smarthome",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "icon": "matterbridge.png",
+    "main": "main.js",
+    "adminUI": {
+      "config": "json",
+      "tab": "html"
+    },
+
+    "adminTab": {
+      "link": "/adapter/matterbridge/tab.html",
+      "singleton": true,
+      "name": {
+        "en": "Matterbridge",
+        "de": "Matterbridge"
+      },
+      "icon": "matterbridge.png"
+    },
+
+    "stopTimeout": 10000,
+    "dependencies": [
+      { "js-controller": ">=5.0.0" }
+    ]
+  },
+  "native": {
+    "installPath": "",
+    "frontendPort": 8283,
+    "matterPort": 5540,
+    "mdnsInterface": "",
+    "autostart": true,
+    "autoRestart": true,
+    "npmMirror": "",
+    "nodeMajor": 24,
+    "dataDir": ""
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": { "name": "Information" },
+      "native": {}
+    },
+    {
+      "_id": "info.running",
+      "type": "state",
+      "common": {
+        "role": "indicator.state",
+        "name": "Matterbridge-Prozess läuft",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.installed",
+      "type": "state",
+      "common": {
+        "role": "indicator",
+        "name": "Matterbridge ist installiert",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.nodeRuntimeReady",
+      "type": "state",
+      "common": {
+        "role": "indicator",
+        "name": "Isolierte Node.js-Laufzeit fuer Matterbridge bereit",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.restart",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Matterbridge neu starten",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.stop",
+      "type": "state",
+      "common": {
+        "role": "button",
+        "name": "Matterbridge stoppen",
+        "type": "boolean",
+        "read": false,
+        "write": true,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.installPlugin",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "npm-Paketname eines Matterbridge-Plugins eintragen, um es zu installieren und zu registrieren (laeuft garantiert mit der isolierten Node/npm-Version, unabhaengig von Matterbridges eigenem Install-Button)",
+        "type": "string",
+        "read": true,
+        "write": true,
+        "def": ""
+      },
+      "native": {}
+    },
+    {
+      "_id": "control.removePlugin",
+      "type": "state",
+      "common": {
+        "role": "text",
+        "name": "npm-Paketname eines Matterbridge-Plugins eintragen, um es zu entfernen (Registrierung bei Matterbridge, Dateien bleiben erhalten)",
+        "type": "string",
+        "read": true,
+        "write": true,
+        "def": ""
+      },
+      "native": {}
+    }
+  ]
+}

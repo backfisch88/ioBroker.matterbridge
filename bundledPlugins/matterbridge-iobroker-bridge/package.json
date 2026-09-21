@@ -1,0 +1,15 @@
+{
+  "name": "matterbridge-iobroker-bridge",
+  "version": "0.12.0",
+  "description": "Exposes ioBroker states as Matter devices, based on their common.role. Auto-discovers supported states and lets you pick which to expose via the Matterbridge frontend checkbox picker (whiteList/blackList). Connects directly to the ioBroker states/objects database (Redis protocol) - no extra ioBroker adapter (socketio/ws/rest-api) required. Works both with real Redis and with js-controller's built-in file-mode simulator.",
+  "author": "Henrik",
+  "license": "MIT",
+  "type": "module",
+  "main": "module.js",
+  "matterbridge": {
+    "type": "DynamicPlatform"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1"
+  }
+}

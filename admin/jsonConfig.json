@@ -1,0 +1,81 @@
+{
+  "type": "panel",
+  "i18n": false,
+  "items": {
+    "_intro": {
+      "type": "staticText",
+      "text": "Matterbridge wird bei Bedarf automatisch via npm installiert und als eigener Prozess verwaltet. Die eigentliche Konfiguration von Bridges/Plugins erfolgt im Matterbridge-Admin-Tab (linke Navigation).",
+      "sm": 12
+    },
+    "frontendPort": {
+      "type": "number",
+      "label": "Matterbridge Web-Frontend Port",
+      "min": 1024,
+      "max": 65535,
+      "default": 8283,
+      "sm": 6
+    },
+    "matterPort": {
+      "type": "number",
+      "label": "Matter-Netzwerk-Port",
+      "min": 1024,
+      "max": 65535,
+      "default": 5540,
+      "sm": 6
+    },
+    "mdnsInterface": {
+      "type": "text",
+      "label": "Netzwerk-Interface für mDNS (leer = automatisch)",
+      "placeholder": "z.B. eth0, docker0, wlan0",
+      "default": "",
+      "sm": 6
+    },
+    "npmMirror": {
+      "type": "text",
+      "label": "Alternative npm-Registry (optional)",
+      "placeholder": "z.B. https://registry.npmmirror.com",
+      "default": "",
+      "sm": 6
+    },
+    "nodeMajor": {
+      "type": "number",
+      "label": "Node.js-Hauptversion fuer Matterbridge (isoliert, System-Node bleibt unveraendert)",
+      "min": 18,
+      "max": 30,
+      "default": 24,
+      "sm": 6
+    },
+    "_nodeRuntimeInfo": {
+      "type": "staticText",
+      "text": "Der Adapter laedt bei Bedarf automatisch eine eigene, isolierte Node.js-Version nur fuer den Matterbridge-Prozess herunter (unter iobroker-data/matterbridge/nodeRuntime). Das System-Node fuer ioBroker selbst bleibt davon unberuehrt. Aendern nur noetig, falls eine neuere Matterbridge-Version eine hoehere Node-Version voraussetzt.",
+      "sm": 12
+    },
+    "dataDir": {
+      "type": "text",
+      "label": "iobroker-data Verzeichnis (nur aendern, falls abweichend vom Standard)",
+      "placeholder": "/opt/iobroker/iobroker-data",
+      "default": "",
+      "sm": 12
+    },
+    "_dataDirInfo": {
+      "type": "staticText",
+      "text": "Matterbridge-Installation/-Storage/-NodeRuntime liegen bewusst hier (nicht mehr im Adapterordner unter node_modules), damit npm install/prune-Operationen bei Updates ANDERER Adapter sie nicht versehentlich mit aufraeumen.",
+      "sm": 12
+    },
+    "_divider1": {
+      "type": "divider"
+    },
+    "autostart": {
+      "type": "checkbox",
+      "label": "Matterbridge automatisch mit dem Adapter starten",
+      "default": true,
+      "sm": 6
+    },
+    "autoRestart": {
+      "type": "checkbox",
+      "label": "Bei Absturz automatisch neu starten",
+      "default": true,
+      "sm": 6
+    }
+  }
+}
