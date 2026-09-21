@@ -1,0 +1,14 @@
+{
+  "matterbridgeIntro": "Matterbridge работает как контролируемый дочерний процесс. Настраивайте сам Matterbridge (плагины, устройства, мосты) через встроенную вкладку администратора, а не здесь.",
+  "frontendPort": "Порт веб-интерфейса Matterbridge",
+  "matterPort": "Сетевой порт Matter",
+  "mdnsInterface": "Интерфейс mDNS (необязательно)",
+  "autostart": "Автоматически запускать Matterbridge при старте адаптера",
+  "npmMirror": "Альтернативный реестр npm (необязательно)",
+  "npmMirrorPlaceholder": "например, https://registry.npmmirror.com",
+  "nodeMajor": "Основная версия Node.js для Matterbridge (изолированная, не влияет на системный Node.js)",
+  "nodeRuntimeInfo": "Адаптер автоматически загружает собственную изолированную версию Node.js только для процесса Matterbridge (хранится в iobroker-data/matterbridge/nodeRuntime). Системный Node.js, используемый самим ioBroker, остаётся нетронутым.",
+  "dataDir": "Каталог iobroker-data (изменяйте только если он отличается от стандартного)",
+  "dataDirPlaceholder": "/opt/iobroker/iobroker-data",
+  "dataDirInfo": "Установка/хранилище/среда выполнения Node для Matterbridge намеренно хранятся здесь (не в каталоге адаптера под node_modules), чтобы операции npm install/prune при обновлении ДРУГИХ адаптеров случайно их не удалили."
+}

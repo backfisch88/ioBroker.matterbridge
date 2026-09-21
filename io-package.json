@@ -67,14 +67,22 @@
       { "js-controller": ">=6.0.11" }
     ],
     "globalDependencies": [
-      { "admin": ">=7.6.17" }
+      { "admin": ">=7.6.20" }
     ],
-    "materializeTab": true,
     "stopTimeout": 10000,
     "news": {
       "0.7.1": {
         "en": "Repository review preparation: translated backend/log text and README to English, fixed package.json/io-package.json metadata, added stale Matter lock file cleanup on start.",
-        "de": "Vorbereitung für die Repository-Prüfung: Backend-/Log-Texte und README ins Englische übersetzt, package.json/io-package.json-Metadaten korrigiert, Aufräumen verwaister Matter-Sperrdateien beim Start ergänzt."
+        "de": "Vorbereitung für die Repository-Prüfung: Backend-/Log-Texte und README ins Englische übersetzt, package.json/io-package.json-Metadaten korrigiert, Aufräumen verwaister Matter-Sperrdateien beim Start ergänzt.",
+        "ru": "Подготовка к проверке репозитория: переведены серверные тексты/логи и README на английский, исправлены метаданные package.json/io-package.json, добавлена очистка устаревших файлов блокировки Matter при запуске.",
+        "pt": "Preparação para revisão do repositório: textos de backend/log e README traduzidos para inglês, metadados de package.json/io-package.json corrigidos, adicionada limpeza de arquivos de bloqueio Matter obsoletos na inicialização.",
+        "nl": "Voorbereiding voor repository-review: backend-/logteksten en README naar het Engels vertaald, package.json/io-package.json-metadata gecorrigeerd, opschonen van verouderde Matter-lockbestanden bij opstarten toegevoegd.",
+        "fr": "Préparation à la révision du dépôt : textes backend/journaux et README traduits en anglais, métadonnées package.json/io-package.json corrigées, nettoyage des fichiers de verrouillage Matter obsolètes ajouté au démarrage.",
+        "it": "Preparazione alla revisione del repository: testi backend/log e README tradotti in inglese, metadati di package.json/io-package.json corretti, aggiunta la pulizia dei file di blocco Matter obsoleti all'avvio.",
+        "es": "Preparación para la revisión del repositorio: textos de backend/registro y README traducidos al inglés, metadatos de package.json/io-package.json corregidos, se añadió la limpieza de archivos de bloqueo de Matter obsoletos al iniciar.",
+        "pl": "Przygotowanie do przeglądu repozytorium: przetłumaczono teksty backendu/logów oraz README na angielski, poprawiono metadane package.json/io-package.json, dodano czyszczenie nieaktualnych plików blokady Matter przy starcie.",
+        "uk": "Підготовка до перевірки репозиторію: перекладено серверні тексти/логи та README англійською, виправлено метадані package.json/io-package.json, додано очищення застарілих файлів блокування Matter під час запуску.",
+        "zh-cn": "仓库审核准备：将后端/日志文本和 README 翻译为英文，修正了 package.json/io-package.json 元数据，新增启动时清理过期 Matter 锁文件的功能。"
       }
     }
   },

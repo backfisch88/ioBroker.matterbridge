@@ -1,0 +1,14 @@
+{
+  "matterbridgeIntro": "Matterbridge 作为受管理的子进程运行。请通过内嵌的管理选项卡配置 Matterbridge 本身（插件、设备、桥接），而不是在此处配置。",
+  "frontendPort": "Matterbridge 前端端口",
+  "matterPort": "Matter 网络端口",
+  "mdnsInterface": "mDNS 网络接口（可选）",
+  "autostart": "适配器启动时自动启动 Matterbridge",
+  "npmMirror": "备用 npm 仓库地址（可选）",
+  "npmMirrorPlaceholder": "例如 https://registry.npmmirror.com",
+  "nodeMajor": "Matterbridge 使用的 Node.js 主版本（独立运行，不影响系统 Node.js）",
+  "nodeRuntimeInfo": "适配器会自动下载专用于 Matterbridge 进程的独立 Node.js 版本（存储于 iobroker-data/matterbridge/nodeRuntime）。ioBroker 自身使用的系统 Node.js 不受影响。",
+  "dataDir": "iobroker-data 目录（仅在与默认值不同的情况下更改）",
+  "dataDirPlaceholder": "/opt/iobroker/iobroker-data",
+  "dataDirInfo": "Matterbridge 的安装/存储/Node 运行时有意存放在此处（而非适配器目录下的 node_modules 中），以避免其他适配器更新时的 npm install/prune 操作意外将其删除。"
+}
