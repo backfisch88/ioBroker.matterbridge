@@ -88,19 +88,7 @@ Its own configuration is done through the Matterbridge frontend (embedded admin 
 ### 0.7.0 (2026-09-15)
 - Moved Matterbridge installation/storage/Node.js runtime from the adapter directory to `iobroker-data/matterbridge/`, with automatic migration of existing installations. Protects against npm install/prune operations triggered by updates of other adapters.
 
-### Earlier versions
-
-Covers releases up to and including 0.6.x:
-
-- Added automatic installation and registration of the bundled `matterbridge-iobroker-bridge` plugin
-- Added the `dataDir` configuration option
-- Added `-nosudo` flag to prevent Matterbridge's internal plugin installer from losing the isolated npm prefix via `sudo`'s environment reset
-- Added adapter icon and configurable Matter port
-- Added isolated Node.js runtime download and management
-- Added `control.installPlugin`/`control.removePlugin` states for managing Matterbridge plugins independently of Matterbridge's own (unreliable) install mechanism
-
-### 0.1.0
-- Initial release: install, start, stop, and embed Matterbridge as an ioBroker adapter with an admin tab
+Releases up to and including 0.6.x are listed in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
 ## License
 
