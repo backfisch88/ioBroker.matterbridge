@@ -4,6 +4,7 @@
   "matterPort": "Puerto de red Matter",
   "mdnsInterface": "Interfaz mDNS (opcional)",
   "autostart": "Iniciar Matterbridge automáticamente cuando se inicie el adaptador",
+  "autoRestart": "Reiniciar automáticamente Matterbridge si se cierra inesperadamente (retraso exponencial, hasta 5 minutos)",
   "npmMirror": "Registro npm alternativo (opcional)",
   "npmMirrorPlaceholder": "p. ej., https://registry.npmmirror.com",
   "nodeMajor": "Versión principal de Node.js para Matterbridge (aislada, no afecta al Node.js del sistema)",

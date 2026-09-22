@@ -4,6 +4,7 @@
   "matterPort": "Matter 网络端口",
   "mdnsInterface": "mDNS 网络接口（可选）",
   "autostart": "适配器启动时自动启动 Matterbridge",
+  "autoRestart": "如果 Matterbridge 意外退出，则自动重启（指数退避，最长 5 分钟）",
   "npmMirror": "备用 npm 仓库地址（可选）",
   "npmMirrorPlaceholder": "例如 https://registry.npmmirror.com",
   "nodeMajor": "Matterbridge 使用的 Node.js 主版本（独立运行，不影响系统 Node.js）",

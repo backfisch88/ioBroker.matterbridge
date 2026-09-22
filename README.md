@@ -9,6 +9,11 @@ Runs and supervises a native [Matterbridge](https://github.com/Luligu/matterbrid
 
 This adapter does not implement any Matter logic itself - all cluster and plugin management is handled by Matterbridge. It also automatically installs and registers the bundled `matterbridge-iobroker-bridge` plugin, which exposes ioBroker states (switches, blinds, vacuum robots, sensors, dimmers, and more via a configurable device builder) as Matter devices.
 
+## Requirements
+
+- Node.js **>=22** for running the adapter itself (js-controller's own Node.js). Matterbridge runs under its own separate, isolated Node.js runtime that the adapter downloads automatically - see below - so this requirement is unrelated to that.
+- ioBroker js-controller **>=6.0.11**, admin **>=7.6.20**
+
 ## Features
 
 - Installs and manages Matterbridge as a supervised child process (install, start, stop, restart, auto-restart with exponential backoff)

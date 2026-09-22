@@ -51,6 +51,16 @@
       "lg": 6,
       "xl": 6
     },
+    "autoRestart": {
+      "type": "checkbox",
+      "label": "autoRestart",
+      "default": true,
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
     "npmMirror": {
       "type": "text",
       "label": "npmMirror",
