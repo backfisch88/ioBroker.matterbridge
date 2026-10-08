@@ -50,6 +50,7 @@
     "dataSource": "push",
     "icon": "matterbridge.png",
     "extIcon": "https://raw.githubusercontent.com/backfisch88/ioBroker.matterbridge/main/admin/matterbridge.png",
+    "readme": "https://github.com/backfisch88/ioBroker.matterbridge/blob/main/README.md",
     "adminUI": {
       "config": "json",
       "tab": "html"
